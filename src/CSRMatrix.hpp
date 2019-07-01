@@ -61,13 +61,7 @@ namespace miniFE
 						                          ix + sx, iy + sy, iz + sz);
 						if (col_id >= 0 && col_id < global_nrows) {
 							const int col = mesh.map_id_to_row(col_id);
-							if (col >= global_nrows) {
-								std::cout << "mesh->map_id_to_row produced col = " << col
-								          << " from col_id = " << col_id
-								          << ", but global_nrows = " << global_nrows
-								          << ", max_row_in_map = " << mesh.max_row_in_map()
-								          << std::endl;
-							}
+							assert (col < global_nrows);
 							packed_cols[offset + nnz] = col;
 							packed_coefs[offset + nnz] = 0;
 							++nnz;
@@ -84,6 +78,7 @@ namespace miniFE
 		                 int global_nrows,
 		                 const simple_mesh_description &mesh)
 		{
+			printf("nrows %d\n",nrows);
 			for (int i = 0; i < nrows; ++i)
 				init_row(i, row_coords_vec,
 				         global_nx, global_ny, global_nz,
@@ -228,6 +223,7 @@ namespace miniFE
 
 				global_nrows = global_nodes_x * global_nodes_y * global_nodes_z;
 				nrows = box.get_num_ids();
+
 				try {
 					// This substituted the reserve function
 					rows = (int *) rrd_malloc(nrows * sizeof(int));
@@ -276,15 +272,13 @@ namespace miniFE
 										}
 									}
 								}
-
 							}
 						}
 					}
 					row_offsets[nrows] = nnz;
 				}
 
-				if (roffset != nrows)
-					throw std::runtime_error("ERROR in generate_matrix_structure, roffset != nrows.");
+				assert(roffset == nrows);
 				num_nonzeros = nnz;
 
 				packed_cols = (int *) rrd_malloc(nnz * sizeof(int));

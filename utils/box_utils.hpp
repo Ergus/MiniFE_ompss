@@ -82,22 +82,23 @@ namespace miniFE
 
 
 	std::map<int,int> create_map_id_to_row(
-		const int global_nx, const int global_ny, const int global_nz,
-		const Box *local_node_box_array, const size_t id,
-		const size_t totalboxes)
+		int global_nx, int global_ny, const int global_nz,
+		const Box *local_node_box_array, size_t id, size_t numboxes)
 	{
 
-		assert(id < totalboxes);
+		assert(id < numboxes);
 
-		std::vector<int> all_ids =
-			local_node_box_array[id].get_ids(global_nx, global_ny, global_nz, false);
+		const Box &box = local_node_box_array[id];
 
-		int global_offsets[totalboxes];
-		for (size_t i = 0; i < totalboxes; ++i)
+		std::vector<int> all_ids = box.get_ids(global_nx, global_ny, global_nz, false);
+
+		// This substituted the all_gather
+		int global_offsets[numboxes];
+		for (size_t i = 0; i < numboxes; ++i)
 			global_offsets[i] = local_node_box_array[i].get_num_ids();
 
 		int offset = 0;
-		for(size_t i = 0; i < totalboxes; ++i) {
+		for(size_t i = 0; i < numboxes; ++i) {
 			const int tmp = global_offsets[i];
 			global_offsets[i] = offset;
 			offset += tmp;
@@ -110,17 +111,18 @@ namespace miniFE
 		if (all_ids.size() > 0)
 			id_to_row.insert(std::make_pair(all_ids[0], my_first_row));
 
-		for(size_t i = 1; i < all_ids.size(); ++i)
+		for (size_t i = 1; i < all_ids.size(); ++i)
 			if (all_ids[i] != all_ids[i - 1] + 1)
 				id_to_row[all_ids[i]] = my_first_row + i;
 
-		for(size_t i = 0; i < totalboxes; ++i) {
+
+		for (size_t i = 0; i < numboxes; ++i) {
 			if (i == id)
 				continue;
 
 			const Box &box_i = local_node_box_array[i];
 
-			if (!box_i.is_neighbor(box_i))
+			if (!box.is_neighbor(box_i))
 				continue;
 
 			all_ids = box_i.get_ids(global_nx, global_ny, global_nz, false);

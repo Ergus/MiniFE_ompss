@@ -8,6 +8,6 @@
 
 #define MINIFE_CXX "'/usr/bin/g++'"
 #define MINIFE_CXX_VERSION "'g++ (GCC) 9.1.0'"
-#define MINIFE_CXXFLAGS "'-O3 -g'"
+#define MINIFE_CXXFLAGS "'-O3 -g '"
 
 #endif

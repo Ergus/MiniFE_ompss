@@ -42,7 +42,8 @@ namespace miniFE
 	class simple_mesh_description {
 	public:
 		void init(const Box &global_box_in,
-		          const Box *local_boxes_array,
+		          const Box *local_boxes_array,    // Global boxes
+		          const Box *local_node_box_array, // Boxes resized
 		          size_t id, size_t total)
 		{
 			assert(id < total);
@@ -52,17 +53,7 @@ namespace miniFE
 			local_box = local_boxes_array[id];
 
 			// Needed for this function
-			Box local_node_box(local_boxes_array[id]);
-
-			for (int i = 0; i < 3; ++i) {
-				//num-owned-nodes == num-elems+1 in this
-				//dimension if the elem box is not empty and we
-				//are at the high end of the global range in
-				//that dimension:
-				if (local_box[i][1] > local_box[i][0] &&
-				    local_box[i][1] == global_box[i][1])
-					local_node_box[i][1]++;
-			}
+			Box local_node_box(local_node_box_array[id]);
 
 			const int max_node_x = global_box[0][1] + 1;
 			const int max_node_y = global_box[1][1] + 1;
@@ -72,7 +63,7 @@ namespace miniFE
 			std::set<int> bc_rows_0, bc_rows_1;
 			std::map<int, int> map_ids_to_rows =
 				create_map_id_to_row(max_node_x, max_node_y, max_node_z,
-				                     local_boxes_array, id, total);
+				                     local_node_box_array, id, total);
 
 			//As described in analytic_soln.hpp,
 			//we will impose a 0 boundary-condition on faces x=0, y=0, z=0, y=1, z=1
@@ -260,6 +251,9 @@ namespace miniFE
 			ompss_bc_rows_0 = bc_rows_0;
 			ompss_bc_rows_1 = bc_rows_1;
 			ompssmap_ids_to_rows = map_ids_to_rows;
+
+			auto it1 = ompssmap_ids_to_rows.begin();
+			auto it2 = map_ids_to_rows.begin();
 		}
 
 		// Arrays allocations (boxes can go in local memory)

@@ -90,7 +90,7 @@ namespace miniFE {
 		for (size_t id = 0; id < numboxes; ++id) {
 			//int *tmp_neighbors_local = &tmp_neighbors_global[numboxes * id];
 			int *recv_list_local = &recv_list_global[id * numboxes];
-			int *recv_length_local = &recv_list_global[id * numboxes];
+			int *recv_length_local = &recv_length_global[id * numboxes];
 
 			//Tasks here
 			// in nrows_array[0; numboxes]
@@ -110,7 +110,6 @@ namespace miniFE {
 				int num_external = 0;
 				std::map<int,int> externals;
 				std::vector<int> external_index_vector; // temporal.
-
 				const int start_row = start_row_array[id];
 				const int stop_row = stop_row_array[id];
 				const int local_nrow = nrows_array[id];
@@ -118,7 +117,7 @@ namespace miniFE {
 					int *Acols = NULL;
 					double *Acoefs = NULL;
 					size_t row_len = 0;
-					A_array[id].get_row_pointers(A.rows[i], row_len, Acols, Acoefs);
+					A.get_row_pointers(A.rows[i], row_len, Acols, Acoefs);
 
 					for (size_t j = 0; j < row_len; ++j) {
 						const int cur_ind = Acols[j];
@@ -142,8 +141,7 @@ namespace miniFE {
 
 				for (int i = 0; i < num_external; ++i) {
 					const int cur_ind = external_index_vector[i];
-
-					for (size_t j = numboxes - 1; j >= 0; --j) {
+					for (int j = numboxes - 1; j >= 0; --j) {
 						if (0 <= start_row_array[j] &&
 						    start_row_array[j] <= cur_ind && cur_ind <= stop_row_array[j]) {
 							external_processor_vector[i] = j;
@@ -155,10 +153,12 @@ namespace miniFE {
 				}
 
 				// Filling the externals
-				size_t count = 0, count_proc = 0;
 				int *external_local_index_local = (int *) rrl_malloc(num_external * sizeof(int));
-				int *external_grouped_index_local = (int *) rrl_malloc(num_external * sizeof(int));
+				for (size_t i = 0; i < num_external; ++ i)
+					external_local_index_local[i] = -1; // initialize to -1
 
+				int *external_grouped_index_local = (int *) rrl_malloc(num_external * sizeof(int));
+				size_t count = 0, count_proc = 0;
 				// TODO: probably this needs to be a task
 				for (int i = 0; i < num_external; ++i) {
 					if (external_local_index_local[i] < 0) {
@@ -170,7 +170,6 @@ namespace miniFE {
 						for(int j = i + 1; j < num_external; ++j) {
 							if (external_processor_vector[j] ==
 							    external_processor_vector[i]) {
-
 								external_local_index_local[j]
 									= local_nrow + count;
 								external_grouped_index_local[count]
@@ -181,12 +180,11 @@ namespace miniFE {
 							}
 						}
 						recv_list_local[count_proc] = external_processor_vector[i];
+
 						recv_length_local[count_proc] = count_i;
 						++count_proc;
 					}
 				}
-
-				assert(count == num_external);
 
 				// Copies to simplify tasks
 				nrecv_list_global[id] = count_proc;
@@ -224,8 +222,6 @@ namespace miniFE {
 						}
 					}
 				}
-				// Assert we found all the elements.
-				assert(count_assert == num_external);
 
 				// TODO: taskwait
 				// Release local memory
@@ -238,7 +234,7 @@ namespace miniFE {
 		for (size_t id = 0; id < numboxes; ++id) {
 
 			int *send_list_local = &send_list_global[id * numboxes];
-			int *send_length_local = &send_list_global[id * numboxes];
+			int *send_length_local = &send_length_global[id * numboxes];
 
 			// Tasks here
 			// in A_array[id]
@@ -279,7 +275,6 @@ namespace miniFE {
 						for (int j = 0; j < nrecv_list_remote_i; ++j) {
 							if (recv_list_i[j] == id) {
 								const int send_i = recv_length_i[j];
-
 								send_list_local[count_proc] = i;
 								send_length_local[count_proc] = send_i;
 								count += send_i;
@@ -292,6 +287,7 @@ namespace miniFE {
 						}
 					}
 				}
+
 				nsend_list_global[id] = count_proc;
 				nsend_length_global[id] = count;
 
@@ -316,6 +312,7 @@ namespace miniFE {
 				for (int i = 0; i < count_proc; ++i) { // Iterate over neighbors list
 					const int send_neighbor_id = send_list_local[i]; // neighbor
 
+					printf("send_neighbor_id[%d] = %d \n", i, send_list_local[i]);
 					assert(send_neighbor_id < numboxes);
 
 					// number of neighbors that will send to neighbors
@@ -349,8 +346,9 @@ namespace miniFE {
 							for (int k = 0; k < nsend_to_id; ++k) {
 								const int id_to_send_global = ptr_remote[k];
 
-								assert(start_row < id_to_send_global);
-								assert(id_to_send_global < stop_row_array[k]);
+								// Assert I have this element
+								assert(start_row <= id_to_send_global);
+								assert(id_to_send_global <= stop_row);
 
 								ptr_local[k] = id_to_send_global - start_row;
 							}

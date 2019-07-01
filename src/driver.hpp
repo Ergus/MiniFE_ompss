@@ -121,11 +121,22 @@ int driver(const Box &global_box,
 	timer_type t_start = mytimer();
 	timer_type t0 = mytimer();
 
+	// Tasks here
+	Box local_node_box_array[numboxes];
+	for (size_t i = 0; i < numboxes; ++i) {
+		local_node_box_array[i] = local_boxes_array[i];
+
+		for (int j = 0; j < 3; ++j) {
+			if (local_boxes_array[i][j][1] > local_boxes_array[i][j][0] &&
+			    local_boxes_array[i][j][1] == global_box[j][1])
+				++local_node_box_array[i][j][1];
+		}
+	}
+
 	simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
 
-	// Tasks here
 	for (size_t i = 0; i < numboxes; ++i)
-		mesh_array[i].init(global_box, local_boxes_array, i, numboxes);
+		mesh_array[i].init(global_box, local_boxes_array, local_node_box_array, i, numboxes);
 
 	// Taskwait here
 	timer_type mesh_fill = mytimer() - t0;

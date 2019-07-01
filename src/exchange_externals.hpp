@@ -57,18 +57,16 @@ namespace miniFE {
 			// in A
 			// in x
 			{
-				#ifdef MINIFE_DEBUG
-				os << "i: " << id
-				   << "total_to_be_sent: " << A.nelements_to_send
-				   << std::endl;
-				#endif
-
 				// in A.elements_to_send[0;A.nelements_to_send];
 				// in x.coefs[]
 				// out A.send_buffer[0;A.nelements_to_send];
 				{
-					for (int i = 0; A.nelements_to_send; ++i)
+					printf("%d: (%d)", id, A.nelements_to_send);
+					for (int i = 0; i < A.nelements_to_send; ++i) {
+						printf("(%d %d %lf)\n ", i, A.elements_to_send[i], x.coefs[A.elements_to_send[i]]);
 						A.send_buffer[i] = x.coefs[A.elements_to_send[i]];
+					}
+					printf("\n");
 				}
 			}
 		}

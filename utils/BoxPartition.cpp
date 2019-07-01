@@ -81,7 +81,7 @@ void box_partition( int ip, int up, int axis, const Box &box, Box *p_box )
 	const int np = up - ip ;
 
 	if ( np == 1 ) {
-		*p_box = box;
+		p_box[ip] = box;
 		return;
 	}
 
