@@ -192,7 +192,17 @@ void cg_solve_all(MatrixType *A_array, size_t numboxes,
 		double p_ap_dot_global = 0.0;
 
 		// This creates tasks internally
+		if (k == 1) {
+			printf("vsize %d\n", p_array[1].local_size);
+			std::cout << p_array[1] << std::endl;
+		}
 		exchange_externals_all(A_array, p_array, numboxes);
+
+		if (k == 1) {
+			printf("vsize %d\n", p_array[1].local_size);
+			std::cout << p_array[1] << std::endl;
+		}
+
 
 		for (size_t i = 0; i < numboxes; ++i) {
 			// TODO:  task here

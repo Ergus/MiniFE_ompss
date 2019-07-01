@@ -61,12 +61,8 @@ namespace miniFE {
 				// in x.coefs[]
 				// out A.send_buffer[0;A.nelements_to_send];
 				{
-					printf("%d: (%d)", id, A.nelements_to_send);
-					for (int i = 0; i < A.nelements_to_send; ++i) {
-						printf("(%d %d %lf)\n ", i, A.elements_to_send[i], x.coefs[A.elements_to_send[i]]);
+					for (int i = 0; i < A.nelements_to_send; ++i)
 						A.send_buffer[i] = x.coefs[A.elements_to_send[i]];
-					}
-					printf("\n");
 				}
 			}
 		}
@@ -81,13 +77,13 @@ namespace miniFE {
 			// dependencies I'll need in advance.  in A (full) out
 			// x.coefs[A.nrows; A.nexternals]
 			{
-				int index = 0;
-				double* x_external = &(x.coefs[A.nrows]);
+				double *x_external = &(x.coefs[A.nrows]);
 
+				int index = 0;
 				// This can be paralelized if needed easily
 				for (int i = 0; i < A.nrecv_neighbors; ++i) {
 					for (int j = 0; j < A.recv_length[i]; ++j) {
-						x.coefs[index++] = A.recv_ptr[i][j];
+						x_external[index++] = A.recv_ptr[i][j];
 					}
 				}
 

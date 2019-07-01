@@ -128,6 +128,15 @@ namespace miniFE
 	};
 
 
+	inline std::ostream& operator <<(std::ostream &stream, const Vector &in) {
+		stream << "[ ";
+		for (int i = 0; i < in.local_size; ++i)
+			stream << in.coefs[i] << "; ";
+		stream << "]"<< std::endl;
+		return stream;
+	}
+
+
 }//namespace miniFE
 
 #endif

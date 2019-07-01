@@ -70,13 +70,8 @@ void fused_waxpby(double alpha, const Vector &x,
                   Vector &w2)
 {
 
-	#ifdef MINIFE_DEBUG
-	if (y.local_size < x.local_size || w.local_size < x.local_size) {
-		std::cerr << "miniFE::waxpby ERROR, y and w must be at least as long as x." << std::endl;
-		return;
-	}
-	#endif
-
+	assert(x.local_size <= y.local_size);
+	assert(x.local_size <= w.local_size);
 	const int n = x.local_size;
 
 	for(int i = 0; i < n; ++i) {

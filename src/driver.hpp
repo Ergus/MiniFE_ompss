@@ -289,23 +289,21 @@ int driver(const Box &global_box,
 	std::cout << "Final Resid Norm: " << rnorm << std::endl;
 
 	if (params.verify_solution > 0) {
-		double tolerance = 0.06;
-		bool verify_whole_domain = false;
 		#ifdef MINIFE_DEBUG
-		verify_whole_domain = true;
+		bool verify_whole_domain = true;
+		std::cout << "verifying solution..." << std::endl;
+		#else
+		bool verify_whole_domain = false;
+		std::cout << "verifying solution at ~ (0.5, 0.5, 0.5) ..." << std::endl;
 		#endif
-		if (verify_whole_domain)
-			std::cout << "verifying solution..." << std::endl;
-		else
-			std::cout << "verifying solution at ~ (0.5, 0.5, 0.5) ..." << std::endl;
 
-		// TODO: port verify solution
-		//verify_result = verify_solution(mesh, x, tolerance, verify_whole_domain);
+		verify_result = verify_solution(global_box, local_node_box_array,
+		                                x_array, numboxes, 0.06, verify_whole_domain);
 	}
 
 	#ifdef MINIFE_DEBUG
 	write_vector("x.vec", x);
-	#endif
+	#endif // MINIFE_DEBUG
 	std::string title("CG solve");
 	#endif
 
