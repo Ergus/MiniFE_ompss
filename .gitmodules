@@ -1,0 +1,3 @@
+[submodule "src/ompss"]
+	path = src/ompss
+	url = https://github.com/Ergus/ompSsStl.git

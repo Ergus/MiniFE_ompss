@@ -1,0 +1,47 @@
+
+OBJS = \
+	BoxPartition.o \
+	YAML_Doc.o \
+	YAML_Element.o
+
+UTIL_OBJS = \
+	param_utils.o \
+	utils.o \
+	mytimer.o
+
+MAIN_OBJ = \
+	main.o
+
+MINIFE_INFO = 1
+MINIFE_KERNELS = 0
+
+vpath %.cpp ../utils
+
+all: miniFE_info.hpp miniFE.x
+
+miniFE.x: $(MAIN_OBJ) $(OBJS) $(UTIL_OBJS) *.hpp
+	$(INSTRUMENT) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(MAIN_OBJ) $(OBJS) $(UTIL_OBJS) $(OPTIONAL_OBJS) -o miniFE.x $(LDFLAGS) $(LIBS)
+
+# Generate the miniFe_info.hpp
+%_info.hpp: generate_info_header.sh
+	./$^ "$(CXX)" "$(CXXFLAGS)" $@ "MINIFE"
+
+%.o:%.cpp *.hpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DMINIFE_INFO=$(MINIFE_INFO) -DMINIFE_KERNELS=$(MINIFE_KERNELS) -c $<
+
+%.o:%.c *.h
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
+
+.PHONY: clean realclean test check-syntax
+
+clean:
+	rm -f *.o *.a *.x *.linkinfo miniFE_info.hpp
+
+realclean: clean
+	rm -f gmon.out gprof.* *~ *.yaml *.TVD.* *.mtx* *.vec* minife_debug*
+
+test: miniFE.x
+	./miniFE.x nx=10 verify_solution=1
+
+check-syntax:
+	g++ $(CFLAGS) $(CPPFLAGS) -o /dev/null -S ${CHK_SOURCES} || true

@@ -1,0 +1,7 @@
+GPATH
+GRTAGS
+GTAGS
+*.o
+*.x
+*.yaml
+compile_commands.json
