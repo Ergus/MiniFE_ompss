@@ -35,7 +35,7 @@
 #include <map>
 #include <iostream>
 
-
+#include <cassert>
 #include <Parameters.hpp>
 
 #include <algorithm>
@@ -124,13 +124,17 @@ namespace miniFE
 		return std_dev * 100.0 / avg_nrows;
 	}
 
-	template <typename maptype>
-	int find_row_for_id(int id, const maptype &ids_to_rows)
+	template <typename iterator>
+	int find_row_for_id(int id, const iterator begin, const iterator end)
 	{
-		auto iter = ids_to_rows.lower_bound(id);
+		auto iter = std::lower_bound(begin, end, id,
+		                        [](const std::pair<int,int> &it, const int &id) -> bool
+					{
+						return it.first < id;
+					});
 
-		if (iter == ids_to_rows.end() || iter->first != id) {
-			if (ids_to_rows.size() > 0)
+		if (iter == end || iter->first != id) {
+			if (end != begin)
 				--iter;
 			else {
 				std::cerr << "ERROR, failed to map id to row."
@@ -142,22 +146,19 @@ namespace miniFE
 		if (iter->first == id)
 			return iter->second;
 
-		if (iter == ids_to_rows.begin() && iter->first > id) {
-			std::cerr << "ERROR, id:" << id
-			          << ", ids_to_rows.begin(): " << iter->first
-			          << std::endl;
-			return -99;
-		}
+		assert (iter != begin || iter->first < id);
 
 		const int offset = id - iter->first;
 
-		if (offset < 0) {
-			std::cerr << "ERROR, negative offset in find_row_for_id for id="<< id
-			          << std::endl;
-			return -99;
-		}
+		assert(offset >= 0);
 
 		return iter->second + offset;
+	}
+
+	template <typename Container>
+	int find_row_for_id(int id, const Container &in)
+	{
+		return find_row_for_id(id, in.begin(), in.end());
 	}
 
 }//namespace miniFE

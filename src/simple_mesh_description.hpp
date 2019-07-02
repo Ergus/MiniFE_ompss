@@ -32,8 +32,6 @@
 #include <utils.hpp>
 
 #include "ompss_utils.hpp"
-//#include "ompss/ompss_static_set.hpp"
-#include "ompss/ompss_static_map.hpp"
 
 #include "Box.hpp"
 #include "box_utils.hpp"
@@ -42,6 +40,35 @@ namespace miniFE
 {
 	class simple_mesh_description {
 	public:
+		simple_mesh_description():
+			ompss2_bc_rows_0(nullptr), ompss2_bc_rows_1(nullptr),
+			bc_rows_0_size(0), bc_rows_1_size(0),
+			ompss2_ids_to_rows(nullptr), ids_to_rows_size(0)
+		{}
+
+		~simple_mesh_description()
+		{
+			rrd_free(ompss2_bc_rows_0, bc_rows_0_size * sizeof(int));
+			rrd_free(ompss2_bc_rows_1, bc_rows_1_size * sizeof(int));
+			rrd_free(ompss2_ids_to_rows, ids_to_rows_size * sizeof(int));
+
+		}
+
+		// Arrays allocations (boxes can go in local memory)
+		static void* operator new[](std::size_t sz)
+		{
+			void * const tmp = rrl_malloc(sz);
+			dbvprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
+			return tmp;
+		}
+
+		static void operator delete[](void* ptr, std::size_t sz)
+		{
+			dbvprintf("Calling: %s, address %p size: %lu\n",
+			          __PRETTY_FUNCTION__, ptr, sz);
+			return rrl_free(ptr, sz);
+		}
+
 		void init(const Box &global_box_in,
 		          const Box *local_boxes_array,    // Global boxes
 		          const Box *local_node_box_array, // Boxes resized
@@ -252,54 +279,28 @@ namespace miniFE
 			bc_rows_0_size = stl_to_global_task(&ompss2_bc_rows_0, bc_rows_0);
 			bc_rows_1_size = stl_to_global_task(&ompss2_bc_rows_1, bc_rows_1);
 
-			ompssmap_ids_to_rows = map_ids_to_rows;
+			ids_to_rows_size =
+				stl_to_global_task(&ompss2_ids_to_rows, map_ids_to_rows);
 
-		}
-
-		// Arrays allocations (boxes can go in local memory)
-		static void* operator new[](std::size_t sz)
-		{
-			void * const tmp = rrl_malloc(sz);
-			dbvprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
-			return tmp;
-		}
-
-		static void operator delete[](void* ptr, std::size_t sz)
-		{
-			dbvprintf("Calling: %s, address %p size: %lu\n",
-			          __PRETTY_FUNCTION__, ptr, sz);
-			return rrl_free(ptr, sz);
 		}
 
 		int map_id_to_row(int id) const
 		{
-			return find_row_for_id(id, ompssmap_ids_to_rows);
+			return find_row_for_id(id,
+			                       ompss2_ids_to_rows,
+			                       &ompss2_ids_to_rows[ids_to_rows_size]);
 		}
 
-		int max_row_in_map() const
-		{
-			if (ompssmap_ids_to_rows.empty())
-				return 0;
-
-			auto mend = ompssmap_ids_to_rows.end();
-			--mend;
-
-			return mend->second;
-		}
-
-		// TODO: this 3 can be substituted by arrays if there are
-		// problems in the future.
-		// But required use std::find, std_lower_bounds to reimplement functions
 		int *ompss2_bc_rows_0;
 		int *ompss2_bc_rows_1;
-
 		size_t bc_rows_0_size, bc_rows_1_size;
 
-		ompss_static_map<int,int> ompssmap_ids_to_rows;
+		std::pair<int,int> *ompss2_ids_to_rows;
+		size_t ids_to_rows_size;
 
 		Box global_box;
 		Box local_box;
-	};//class simple_mesh_description
+	}; //class simple_mesh_description
 
 }//namespace miniFE
 
