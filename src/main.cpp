@@ -31,11 +31,6 @@
 #include <cstdlib>
 #include <vector>
 
-#ifdef MINIFE_REPORT_RUSAGE
-#include <sys/time.h>
-#include <sys/resource.h>
-#endif
-
 #include <miniFE_version.h>
 
 #include <outstream.hpp>
@@ -48,11 +43,7 @@
 #include <driver.hpp>
 #include <YAML_Doc.hpp>
 
-#if MINIFE_INFO != 0
 #include <miniFE_info.hpp>
-#else
-#include <miniFE_no_info.hpp>
-#endif
 
 //The following macros should be specified as compile-macros in the
 //makefile. They are defaulted here just in case...
@@ -94,17 +85,7 @@ int main(int argc, char** argv)
 	// This one is recursive, play with weak here (but it is a cheap)
 	box_partition(0, params.numboxes, 2, global_box, local_boxes);
 
-	// This substitutes the MPI_Allreduce
-	for (int i = 0; i < params.numboxes; ++i) {
-		std::cout << i << ": " << local_boxes[i];
-
-		if (local_boxes[i].get_num_ids() == 0) {
-			std::cout << "One or more boxes have 0 equations. Not currently supported. Exiting."
-			          << std::endl;
-			return 1;
-		}
-
-	}
+	dbarray_to_stream(local_boxes, params.numboxes);
 
 	std::ostringstream osstr;
 	osstr << "miniFE." << params.nx << "x" << params.ny << "x" << params.nz;
@@ -117,7 +98,6 @@ int main(int argc, char** argv)
 	doc.add_configuration_to_yaml(params.numboxes);
 	doc.add_timestring_to_yaml();
 
-
 	// //Most of the program is performed in the 'driver' function, which is
 	// //templated on < Scalar, LocalOrdinal, GlobalOrdinal >.
 	// //To run miniFE with float instead of double, or 'long long' instead of int,
@@ -125,36 +105,15 @@ int main(int argc, char** argv)
 	// //the makefile or on the make command-line.
 
 	// This can be a weak task
-	const int return_code = miniFE::driver(global_box, local_boxes, params.numboxes, params, doc);
+	miniFE::driver(global_box, local_boxes, params.numboxes, params, doc);
 
+	// TODO: taskwait here
 	miniFE::timer_type total_time = miniFE::mytimer() - start_time;
 
-	// #ifdef MINIFE_REPORT_RUSAGE
-	// struct rusage get_mem;
-	// getrusage(RUSAGE_SELF, &get_mem);
-
-	// long long int rank_rss = get_mem.ru_maxrss;
-	// long long int global_rss = 0;
-	// long long int max_rss = 0;
-
-	// #ifdef HAVE_MPI
-	// MPI_Reduce(&rank_rss, &global_rss, 1,
-	//            MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-	// MPI_Reduce(&rank_rss, &max_rss, 1,
-	//            MPI_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
-	// if (myproc == 0) {
-	// 	doc.add("Global All-RSS (kB)", global_rss);
-	// 	doc.add("Global Max-RSS (kB)", max_rss);
-	// }
-	// #else
-	// doc.add("RSS (kB)", rank_rss);
-	// #endif
-	// #endif
-
-	doc.add("Total Program Time",total_time);
+	doc.add("Total Program Time", total_time);
 	doc.generateYAML();
 
-	// return return_code;
+	delete [] local_boxes;
 
 	return 0;
 }

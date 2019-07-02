@@ -67,7 +67,7 @@ namespace miniFE
 		return stream;
 	}
 
-	const err_info &get_max_error(const err_info *in, size_t numboxes) {
+	const inline err_info &get_max_error(const err_info *in, size_t numboxes) {
 		double max_err = in[0].err;
 		size_t idx = 0;
 		for (size_t i = 1; i < numboxes; ++i)
@@ -76,10 +76,11 @@ namespace miniFE
 		return in[idx];
 	}
 
-	int verify_solution(const Box &global_box, const Box *local_node_box_array,
-	                    const Vector *x_array, int numboxes,
-	                    double tolerance,
-	                    bool verify_whole_domain = false)
+	inline int verify_solution(const Box &global_box,
+	                           const Box *local_node_box_array,
+	                           const Vector *x_array, int numboxes,
+	                           double tolerance,
+	                           bool verify_whole_domain = false)
 	{
 
 		const int global_nodes_x = global_box[0][1]+1;
@@ -157,10 +158,7 @@ namespace miniFE
 
 		const err_info &global_max_error = get_max_error(max_error, numboxes);
 
-		if (global_max_error.err > tolerance)
-			std::cout << global_max_error << std::endl;
-		else
-			std::cout << "solution matches analytic solution to within " << tolerance << " or better." << std::endl;
+		std::cout << global_max_error << std::endl;
 
 		return (global_max_error.err > tolerance);
 	}

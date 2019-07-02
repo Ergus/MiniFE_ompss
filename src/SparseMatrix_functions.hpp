@@ -72,7 +72,7 @@ namespace miniFE
 		}
 	}
 
-	void sum_into_row(size_t row_len, int *row_indices, double *row_coefs,
+	inline void sum_into_row(int row_len, int *row_indices, double *row_coefs,
 	                  size_t num_inputs, const int *input_indices, const double *input_coefs)
 	{
 		for (size_t i = 0; i < num_inputs; ++i) {
@@ -92,7 +92,6 @@ namespace miniFE
 		//std::cout<<std::endl;
 
 		int row_offset = 0;
-		bool flag = false;
 
 		for(size_t i = 0; i < num; ++i) {
 			int row = indices[i];

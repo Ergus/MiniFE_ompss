@@ -98,13 +98,13 @@ public:
 	static void* operator new[](std::size_t sz)
 	{
 		void * const tmp = rrl_malloc(sz);
-		dbprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
+		dbvprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
 		return tmp;
 	}
 
 	static void operator delete[](void* ptr, std::size_t sz)
 	{
-		printf("Calling: %s, address %p size: %lu\n", __PRETTY_FUNCTION__, ptr, sz);
+		dbvprintf("Calling: %s, address %p size: %lu\n", __PRETTY_FUNCTION__, ptr, sz);
 		return rrl_free(ptr, sz);
 	}
 
@@ -143,11 +143,13 @@ public:
 		return x_neighbor && y_neighbor && z_neighbor;
 	}
 
-	int get_num_ids() const
+	size_t get_num_ids() const
 	{
 		const int nx = (*this)[0][1] - (*this)[0][0];
 		const int ny = (*this)[1][1] - (*this)[1][0];
 		const int nz = (*this)[2][1] - (*this)[2][0];
+
+		assert(nx * ny * nz >= 0);
 		return nx * ny * nz;
 	}
 
@@ -217,10 +219,10 @@ public:
 	}
 };
 
-inline std::ostream& operator <<(std::ostream &stream, const Box &in) {
+inline std::ostream& operator <<(std::ostream &stream, const Box &in)
+{
 	for (int i = 0; i < 6; ++i)
 		stream << in.ranges[i] << "; ";
-	stream << std::endl;
 	return stream;
 }
 

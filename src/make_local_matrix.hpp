@@ -107,7 +107,7 @@ namespace miniFE {
 				MatrixType &A = A_array[id];
 				// First count and find the external elements
 				// And invert the externals
-				int num_external = 0;
+				size_t num_external = 0;
 				std::map<int,int> externals;
 				std::vector<int> external_index_vector; // temporal.
 				const int start_row = start_row_array[id];
@@ -139,7 +139,7 @@ namespace miniFE {
 				// Go through list of externals and find the processor that owns each
 				std::vector<int> external_processor_vector(num_external, -1);
 
-				for (int i = 0; i < num_external; ++i) {
+				for (size_t i = 0; i < num_external; ++i) {
 					const int cur_ind = external_index_vector[i];
 					for (int j = numboxes - 1; j >= 0; --j) {
 						if (0 <= start_row_array[j] &&
@@ -160,14 +160,14 @@ namespace miniFE {
 				int *external_grouped_index_local = (int *) rrl_malloc(num_external * sizeof(int));
 				size_t count = 0, count_proc = 0;
 				// TODO: probably this needs to be a task
-				for (int i = 0; i < num_external; ++i) {
+				for (size_t i = 0; i < num_external; ++i) {
 					if (external_local_index_local[i] < 0) {
 						external_local_index_local[i] = count + nrows_array[id];
 						external_grouped_index_local[count] = external_index_vector[i];
 						++count;
 						int count_i = 1;
 
-						for(int j = i + 1; j < num_external; ++j) {
+						for(size_t j = i + 1; j < num_external; ++j) {
 							if (external_processor_vector[j] ==
 							    external_processor_vector[i]) {
 								external_local_index_local[j]
@@ -265,7 +265,7 @@ namespace miniFE {
 				// Send a 0 length message to each of our recv neighbors
 				MatrixType &A = A_array[id];
 				size_t count = 0, count_i = 0, count_proc = 0;
-				for (int i = 0; i < numboxes; ++i) {
+				for (size_t i = 0; i < numboxes; ++i) {
 					if (i != id) { // Not send to myself
 						const int nrecv_list_remote_i = nrecv_list_global[i];
 						const int *recv_list_i = &recv_list_global[i * numboxes];
@@ -273,7 +273,7 @@ namespace miniFE {
 						count_i = 0;
 
 						for (int j = 0; j < nrecv_list_remote_i; ++j) {
-							if (recv_list_i[j] == id) {
+							if ((size_t)recv_list_i[j] == id) {
 								const int send_i = recv_length_i[j];
 								send_list_local[count_proc] = i;
 								send_length_local[count_proc] = send_i;
@@ -309,10 +309,9 @@ namespace miniFE {
 				const int start_row = start_row_array[id];
 				const int stop_row = stop_row_array[id];
 				int start_local = 0;
-				for (int i = 0; i < count_proc; ++i) { // Iterate over neighbors list
-					const int send_neighbor_id = send_list_local[i]; // neighbor
+				for (size_t i = 0; i < count_proc; ++i) { // Iterate over neighbors list
+					const size_t send_neighbor_id = send_list_local[i]; // neighbor
 
-					printf("send_neighbor_id[%d] = %d \n", i, send_list_local[i]);
 					assert(send_neighbor_id < numboxes);
 
 					// number of neighbors that will send to neighbors
@@ -328,7 +327,7 @@ namespace miniFE {
 
 					int start_remote = 0;
 					for (int j = 0; j < nrecv_list_id; ++j) {
-						if (recv_list_id[j] == id) {  // If I am the sender
+						if ((size_t)recv_list_id[j] == id) {  // If I am the sender
 							// Where I will put the elements for this neighbors
 							int *ptr_local = &(elements_to_send_local[start_local]);
 

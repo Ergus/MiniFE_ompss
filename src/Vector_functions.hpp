@@ -35,50 +35,50 @@
 
 namespace miniFE {
 
-//------------------------------------------------------------
-//Compute the update of a vector with the sum of two scaled vectors where:
-//
-// w = alpha*x + beta*y
-//
-// x,y - input vectors
-//
-// alpha,beta - scalars applied to x and y respectively
-//
-// w - output vector
-//
+	//------------------------------------------------------------
+	//Compute the update of a vector with the sum of two scaled vectors where:
+	//
+	// w = alpha*x + beta*y
+	//
+	// x,y - input vectors
+	//
+	// alpha,beta - scalars applied to x and y respectively
+	//
+	// w - output vector
+	//
 
-void waxpby(double alpha, const Vector &x,
-            double beta, const Vector &y,
-            Vector &w)
-{
-	assert(x.local_size <= y.local_size);
-	assert(x.local_size <= w.local_size);
-	const int n = x.local_size;
+	inline void waxpby(double alpha, const Vector &x,
+	                   double beta, const Vector &y,
+	                   Vector &w)
+	{
+		assert(x.local_size <= y.local_size);
+		assert(x.local_size <= w.local_size);
+		const int n = x.local_size;
 
-	for(int i = 0; i < n; ++i)
-		w.coefs[i] = alpha * x.coefs[i] + beta * y.coefs[i];
-}
-
-//Like waxpby above, except operates on two sets of arguments.
-//In other words, performs two waxpby operations in one loop.
-
-void fused_waxpby(double alpha, const Vector &x,
-                  double beta, const Vector &y,
-                  Vector& w,
-                  double alpha2, const Vector &x2,
-                  double beta2, const Vector &y2,
-                  Vector &w2)
-{
-
-	assert(x.local_size <= y.local_size);
-	assert(x.local_size <= w.local_size);
-	const int n = x.local_size;
-
-	for(int i = 0; i < n; ++i) {
-		w.coefs[i] = alpha * x.coefs[i] + beta * y.coefs[i];
-		w2.coefs[i] = alpha2 * x2.coefs[i] + beta2 * y2.coefs[i];
+		for(int i = 0; i < n; ++i)
+			w.coefs[i] = alpha * x.coefs[i] + beta * y.coefs[i];
 	}
-}
+
+	//Like waxpby above, except operates on two sets of arguments.
+	//In other words, performs two waxpby operations in one loop.
+
+	inline void fused_waxpby(double alpha, const Vector &x,
+	                         double beta, const Vector &y,
+	                         Vector& w,
+	                         double alpha2, const Vector &x2,
+	                         double beta2, const Vector &y2,
+	                         Vector &w2)
+	{
+
+		assert(x.local_size <= y.local_size);
+		assert(x.local_size <= w.local_size);
+		const int n = x.local_size;
+
+		for(int i = 0; i < n; ++i) {
+			w.coefs[i] = alpha * x.coefs[i] + beta * y.coefs[i];
+			w2.coefs[i] = alpha2 * x2.coefs[i] + beta2 * y2.coefs[i];
+		}
+	}
 
 }//namespace miniFE
 

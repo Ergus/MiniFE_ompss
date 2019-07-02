@@ -10,20 +10,17 @@ MINIFE_MATRIX_TYPE = -DMINIFE_CSR_MATRIX
 
 #-----------------------------------------------------------------------
 
-CFLAGS = -O3 -g 
-CXXFLAGS = $(CFLAGS)
+MINIFEFLAGS := $(MINIFE_TYPES) $(MINIFE_MATRIX_TYPE)
 
-CPPFLAGS = -I. -I../utils -I../fem $(MINIFE_TYPES) $(MINIFE_MATRIX_TYPE) \
-	-DMINIFE_REPORT_RUSAGE
-#	-DHAVE_MPI -DMPICH_IGNORE_CXX_SEEK \
+.PHONY: all debug verbose
 
-LDFLAGS=
-LIBS=
+all: CFLAGS := -O3 -DNDEBUG -std=c99
+all: CXXFLAGS := -O3 -DNDEBUG -std=c++11
 
-#CXX=mpicxx
-#CC=mpicc
+debug: CFLAGS := -O0 -g -std=c99 -Wall
+debug: CXXFLAGS := -O0 -g -std=c++11 -Wall
 
-CXX=g++
-CC=gcc
+verbose: CFLAGS := -O0 -g -std=c99 -Wall -DVERBOSE
+verbose: CXXFLAGS := -O0 -g -std=c++11 -Wall -DVERBOSE
 
 include make_targets

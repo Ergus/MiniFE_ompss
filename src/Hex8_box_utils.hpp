@@ -100,8 +100,8 @@ namespace miniFE
 	}
 
 
-	void get_elem_nodes_and_coords(const simple_mesh_description &mesh, int elemID,
-	                               int *node_ords, double *node_coords)
+	inline void get_elem_nodes_and_coords(const simple_mesh_description &mesh, int elemID,
+	                                      int *node_ords, double *node_coords)
 	{
 		const int global_nodes_x = mesh.global_box[0][1] + 1;
 		const int global_nodes_y = mesh.global_box[1][1] + 1;

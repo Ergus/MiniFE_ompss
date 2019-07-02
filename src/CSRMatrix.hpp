@@ -78,8 +78,7 @@ namespace miniFE
 		                 int global_nrows,
 		                 const simple_mesh_description &mesh)
 		{
-			printf("nrows %d\n",nrows);
-			for (int i = 0; i < nrows; ++i)
+			for (size_t i = 0; i < nrows; ++i)
 				init_row(i, row_coords_vec,
 				         global_nx, global_ny, global_nz,
 				         global_nrows, mesh);
@@ -90,7 +89,7 @@ namespace miniFE
 		int *rows;
 		int *row_offsets;
 		int *row_offsets_external;
-		int global_nrows, nrows;
+		size_t global_nrows, nrows;
 
 		int nnz;
 		int *packed_cols;
@@ -107,20 +106,21 @@ namespace miniFE
 		int *external_index;
 
 		int nsend_neighbors;
-		int nelements_to_send;
 		int *send_neighbors;
 		int *send_length;
+		int nelements_to_send;
 		int *elements_to_send;
 		double *send_buffer;
 
 		CSRMatrix()
 			: has_local_indices(false),
 			  rows(), row_offsets(nullptr), row_offsets_external(),
+			  global_nrows(-1), nrows(-1),
 			  nnz(0), packed_cols(nullptr), packed_coefs(nullptr),
-			  num_cols(0), global_nrows(-1), nrows(-1), num_nonzeros(0),
+			  num_cols(0), num_nonzeros(0),
 
-			  nrecv_neighbors(0), recv_neighbors(nullptr), recv_length(nullptr),
-			  nexternals(0), external_index(nullptr),
+			  nrecv_neighbors(0), nexternals(0), recv_neighbors(nullptr),
+			  recv_ptr(nullptr), recv_length(nullptr), external_index(nullptr),
 
 			  nsend_neighbors(0), send_neighbors(nullptr), send_length(nullptr),
 			  nelements_to_send(0), elements_to_send(nullptr), send_buffer(nullptr)
@@ -157,13 +157,13 @@ namespace miniFE
 		static void* operator new[](std::size_t sz)
 		{
 			void * const tmp = rrl_malloc(sz);
-			dbprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
+			dbvprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
 			return tmp;
 		}
 
 		static void operator delete[](void* ptr, std::size_t sz)
 		{
-			printf("Calling: %s, address %p size: %lu\n", __PRETTY_FUNCTION__, ptr, sz);
+			dbvprintf("Calling: %s, address %p size: %lu\n", __PRETTY_FUNCTION__, ptr, sz);
 			return rrl_free(ptr, sz);
 		}
 
@@ -175,9 +175,8 @@ namespace miniFE
 			//first see if we can get the local-row index using fast direct lookup:
 			if (nrows > 0) {
 				ptrdiff_t idx = row - rows[0];
-				if (idx < nrows && rows[idx] == row) {
+				if (idx < nrows && rows[idx] == row)
 					local_row = idx;
-				}
 			}
 
 			//if we didn't get the local-row index using direct lookup, try a
@@ -202,7 +201,6 @@ namespace miniFE
 
 		void generate_matrix_structure(const simple_mesh_description &mesh)
 		{
-			int threw_exc = 0;
 			try {
 
 				const int global_nodes_x = mesh.global_box[0][1] + 1;
@@ -241,7 +239,7 @@ namespace miniFE
 
 				int *row_coords = (int *) rrl_malloc(nrows * 3 * sizeof(int));
 
-				unsigned roffset = 0;
+				size_t roffset = 0;
 				nnz = 0;
 
 				// TODO: Task here to touch the array row_offsets
@@ -263,10 +261,10 @@ namespace miniFE
 								for(int sz = -1; sz <= 1; ++sz) {
 									for(int sy = -1; sy <= 1; ++sy) {
 										for(int sx = -1; sx <= 1; ++sx) {
-											const int col_id = get_id(global_nodes_x,
-											                          global_nodes_y,
-											                          global_nodes_z,
-											                          ix + sx, iy + sy, iz + sz);
+											const size_t col_id = get_id(global_nodes_x,
+											                             global_nodes_y,
+											                             global_nodes_z,
+											                             ix + sx, iy + sy, iz + sz);
 											if (col_id >= 0 && col_id < global_nrows)
 												++nnz;
 										}
@@ -296,7 +294,6 @@ namespace miniFE
 				std::cout << " threw an exception in generate_matrix_structure,"
 				          << " probably due to running out of memory."
 				          << std::endl;
-				threw_exc = 1;
 			}
 		}
 
@@ -341,7 +338,7 @@ namespace miniFE
 		{
 			double beta = 0.0;
 
-			for (int row = 0; row < nrows; ++row) {
+			for (size_t row = 0; row < nrows; ++row) {
 				double sum = beta * y.coefs[row];
 
 				for(int i = row_offsets[row]; i < row_offsets[row + 1]; ++i) {

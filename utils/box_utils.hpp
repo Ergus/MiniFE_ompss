@@ -40,17 +40,17 @@
 namespace miniFE
 {
 
-	void get_int_coords(int ID,
-	                    int nx, int ny, int nz,
-	                    int &x, int &y, int &z)
+	inline void get_int_coords(int ID,
+	                           int nx, int ny, int nz,
+	                           int &x, int &y, int &z)
 	{
 		z = ID / (nx * ny);
 		y = (ID % (nx * ny)) / nx;
 		x = ID % nx;
 	}
 
-	void get_coords(int ID, int nx, int ny, int nz,
-	                double &x, double &y, double &z)
+	inline void get_coords(int ID, int nx, int ny, int nz,
+	                       double &x, double &y, double &z)
 	{
 		const int xdiv = nx > 1 ? nx - 1 : 1;
 		const int ydiv = ny > 1 ? ny - 1 : 1;
@@ -81,7 +81,7 @@ namespace miniFE
 	}
 
 
-	std::map<int,int> create_map_id_to_row(
+	inline std::map<int,int> create_map_id_to_row(
 		int global_nx, int global_ny, const int global_nz,
 		const Box *local_node_box_array, size_t id, size_t numboxes)
 	{

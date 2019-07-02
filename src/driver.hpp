@@ -98,309 +98,310 @@
 namespace miniFE
 {
 
-int driver(const Box &global_box,
-           Box *local_boxes_array, const size_t numboxes,
-           Parameters &params, YAML_Doc &ydoc)
-{
-	const int global_nx = global_box[0][1];
-	const int global_ny = global_box[1][1];
-	const int global_nz = global_box[2][1];
-
-	// if (params.load_imbalance > 0)
-	// 	add_imbalance<GlobalOrdinal>(global_box, local_boxes, numboxes,
-	// 	                             params.load_imbalance, ydoc);
-
-	// float largest_imbalance = 0, std_dev = 0;
-	// compute_imbalance<GlobalOrdinal>(global_box, my_box, largest_imbalance,
-	//                                  std_dev, ydoc, true);
-
-	//Create a representation of the mesh:
-	//Note that 'simple_mesh_description' is a virtual or conceptual
-	//mesh that doesn't actually store mesh data.
-
-	timer_type t_start = mytimer();
-	timer_type t0 = mytimer();
-
-	// Tasks here
-	Box local_node_box_array[numboxes];
-	for (size_t i = 0; i < numboxes; ++i) {
-		local_node_box_array[i] = local_boxes_array[i];
-
-		for (int j = 0; j < 3; ++j) {
-			if (local_boxes_array[i][j][1] > local_boxes_array[i][j][0] &&
-			    local_boxes_array[i][j][1] == global_box[j][1])
-				++local_node_box_array[i][j][1];
-		}
-	}
-
-	simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
-
-	for (size_t i = 0; i < numboxes; ++i)
-		mesh_array[i].init(global_box, local_boxes_array, local_node_box_array, i, numboxes);
-
-	// Taskwait here
-	timer_type mesh_fill = mytimer() - t0;
-	timer_type t_total = mytimer() - t_start;
-
-	std::cout << mesh_fill << "s, total time: " << t_total << std::endl;
-
-	//next we will generate the matrix structure.
-
-
-	//Declare matrix object array
-	CSRMatrix *A_array = new CSRMatrix[numboxes];
+	inline int driver(const Box &global_box,
+	                  Box *local_boxes_array, const size_t numboxes,
+	                  Parameters &params, YAML_Doc &ydoc)
 	{
-		std::cout << "generating matrix structure..." << std::endl;
-		timer_type gen_structure = mytimer();
+		const int global_nx = global_box[0][1];
+		const int global_ny = global_box[1][1];
+		const int global_nz = global_box[2][1];
 
+		// if (params.load_imbalance > 0)
+		// 	add_imbalance<GlobalOrdinal>(global_box, local_boxes, numboxes,
+		// 	                             params.load_imbalance, ydoc);
+
+		// float largest_imbalance = 0, std_dev = 0;
+		// compute_imbalance<GlobalOrdinal>(global_box, my_box, largest_imbalance,
+		//                                  std_dev, ydoc, true);
+
+		//Create a representation of the mesh:
+		//Note that 'simple_mesh_description' is a virtual or conceptual
+		//mesh that doesn't actually store mesh data.
+
+		timer_type t_start = mytimer();
+		timer_type t0 = mytimer();
+
+		// Tasks here
+		Box local_node_box_array[numboxes];
 		for (size_t i = 0; i < numboxes; ++i) {
-			// TODO: task here
-			A_array[i].generate_matrix_structure(mesh_array[i]);   // TODO: Tasks here
-		}
-		// taskwait here
+			local_node_box_array[i] = local_boxes_array[i];
 
-		REGISTER_ELAPSED_TIME(gen_structure, t_total);
-
-		ydoc.add("Matrix structure generation","");
-		ydoc.get("Matrix structure generation")->add("Mat-struc-gen Time", gen_structure);
-	}
-
-	// Declare vector objects array
-	Vector *b_array = new Vector[numboxes];
-	Vector *x_array = new Vector[numboxes];
-	// TODO: Task Here
-	for (size_t i = 0; i < numboxes; ++i) {
-		const int local_nrows_i = A_array[i].nrows;
-		const int first_row_i = local_nrows_i > 0 ? A_array[i].rows[0] : -1;
-
-		//TODO: Task here
-		b_array[i].init(first_row_i, local_nrows_i);
-		x_array[i].init(first_row_i, local_nrows_i);
-	}
-
-	//Assemble finite-element sub-matrices and sub-vectors into the global linear system:
-	{
-		std::cout << "assembling FE data..." << std::endl;
-		timer_type fe_assembly = mytimer();
-
-		for (size_t i = 0; i < numboxes; ++i)
-			assemble_FE_data(mesh_array[i], A_array[i], b_array[i]);
-
-		REGISTER_ELAPSED_TIME(fe_assembly, t_total);
-
-		ydoc.add("FE assembly", "");
-		ydoc.get("FE assembly")->add("FE assembly Time",fe_assembly);
-	}
-
-
-
-	#ifdef MINIFE_DEBUG
-	// Declare this dependencies among the whole arrays to assert consecutive execution.
-	for (size_t i = 0; i < numboxes; ++i) {
-		// TODO: task here
-		// inout  full arrays to make it sequential
-		A_array[i].write("A_prebc.mtx");
-		b_array[i].write("b_prebc.vec");
-	}
-	#endif
-
-	//Now apply dirichlet boundary-conditions
-	//(Apply the 0-valued surfaces first, then the 1-valued surface last.)
-	{
-		std::cout << "imposing Dirichlet BC..." << std::endl;
-		timer_type dirbc_time  = mytimer();;
-
-		// This dependencies are inout and individual per impose_dirichlet.
-		for (size_t i = 0; i < numboxes; ++i) {
-
-			// TODO: Tasks here
-			// inout A_array[i] (full) b_array[i] (full)
-			// in mesh_array[i]
-			{
-				impose_dirichlet(0.0, A_array[i], b_array[i],
-				                 global_nx + 1, global_ny + 1, global_nz + 1,
-				                 mesh_array[i].ompss_bc_rows_0);
-
-				impose_dirichlet(1.0, A_array[i], b_array[i],
-				                 global_nx + 1, global_ny + 1, global_nz + 1,
-				                 mesh_array[i].ompss_bc_rows_1);
+			for (int j = 0; j < 3; ++j) {
+				if (local_boxes_array[i][j][1] > local_boxes_array[i][j][0] &&
+				    local_boxes_array[i][j][1] == global_box[j][1])
+					++local_node_box_array[i][j][1];
 			}
 		}
 
-		REGISTER_ELAPSED_TIME(dirbc_time, t_total);
-	}
+		simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
 
-	#ifdef MINIFE_DEBUG
-	for (size_t i = 0; i < numboxes; ++i) {
-		A.write_matrix("A.mtx");
-		b.write_vector("b.vec");
-	}
-	#endif
+		for (size_t i = 0; i < numboxes; ++i)
+			mesh_array[i].init(global_box, local_boxes_array, local_node_box_array, i, numboxes);
 
-	//Transform global indices to local, set up communication information:
-	{
-		std::cout << "making matrix indices local..." << std::endl;
-		timer_type make_local_time = mytimer();;
+		// Taskwait here
+		timer_type mesh_fill = mytimer() - t0;
+		timer_type t_total = mytimer() - t_start;
 
-		// TODO: weak task here
-		make_local_matrix(A_array, numboxes);
-	}
+		std::cout << mesh_fill << "s, total time: " << t_total << std::endl;
 
-	#ifdef MINIFE_DEBUG
-	A.write_matrix("A_local.mtx");
-	b.write_vector("b_local.vec");
-	#endif
+		//next we will generate the matrix structure.
 
-	size_t global_nnz = compute_matrix_stats(A_array, numboxes, ydoc);
 
-	//Prepare to perform conjugate gradient solve:
+		//Declare matrix object array
+		CSRMatrix *A_array = new CSRMatrix[numboxes];
+		{
+			std::cout << "generating matrix structure..." << std::endl;
+			timer_type gen_structure = mytimer();
 
-	const int max_iters = 200;
-	int num_iters = 0;
-	double rnorm = 0.0;
-	const double tol = std::numeric_limits<double>::epsilon();
+			for (size_t i = 0; i < numboxes; ++i) {
+				// TODO: task here
+				A_array[i].generate_matrix_structure(mesh_array[i]);   // TODO: Tasks here
+			}
+			// taskwait here
 
-	timer_type cg_times[NUM_TIMERS];
+			REGISTER_ELAPSED_TIME(gen_structure, t_total);
 
-	t_total = mytimer() - t_start;
+			ydoc.add("Matrix structure generation","");
+			ydoc.get("Matrix structure generation")->add("Mat-struc-gen Time", gen_structure);
+		}
 
-	int verify_result = 0;
+		// Declare vector objects array
+		Vector *b_array = new Vector[numboxes];
+		Vector *x_array = new Vector[numboxes];
+		// TODO: Task Here
+		for (size_t i = 0; i < numboxes; ++i) {
+			const int local_nrows_i = A_array[i].nrows;
+			const int first_row_i = local_nrows_i > 0 ? A_array[i].rows[0] : -1;
 
-	#if MINIFE_KERNELS != 0
-	std::cout.width(30);
-	std::cout << "Starting kernel timing loops ..." << std::endl;
+			//TODO: Task here
+			b_array[i].init(first_row_i, local_nrows_i);
+			x_array[i].init(first_row_i, local_nrows_i);
+		}
 
-	max_iters = 500;
-	x.coefs[0] = 0.9;
+		//Assemble finite-element sub-matrices and sub-vectors into the global linear system:
+		{
+			std::cout << "assembling FE data..." << std::endl;
+			timer_type fe_assembly = mytimer();
 
-	time_kernels(A, b, x,
-	             matvec<MatrixType>(),
-	             max_iters, rnorm, cg_times);
+			for (size_t i = 0; i < numboxes; ++i)
+				assemble_FE_data(mesh_array[i], A_array[i], b_array[i]);
 
-	num_iters = max_iters;
-	std::string title("Kernel timings");
-	#else
+			REGISTER_ELAPSED_TIME(fe_assembly, t_total);
 
-	std::cout << "Starting CG solver ... " << std::endl;
+			ydoc.add("FE assembly", "");
+			ydoc.get("FE assembly")->add("FE assembly Time",fe_assembly);
+		}
 
-	cg_solve_all(A_array, numboxes, b_array, x_array,
-	         max_iters, tol, num_iters, rnorm, cg_times);
 
-	std::cout << "Final Resid Norm: " << rnorm << std::endl;
 
-	if (params.verify_solution > 0) {
 		#ifdef MINIFE_DEBUG
-		bool verify_whole_domain = true;
-		std::cout << "verifying solution..." << std::endl;
-		#else
-		bool verify_whole_domain = false;
-		std::cout << "verifying solution at ~ (0.5, 0.5, 0.5) ..." << std::endl;
+		// Declare this dependencies among the whole arrays to assert consecutive execution.
+		for (size_t i = 0; i < numboxes; ++i) {
+			// TODO: task here
+			// inout  full arrays to make it sequential
+			A_array[i].write("A_prebc.mtx");
+			b_array[i].write("b_prebc.vec");
+		}
 		#endif
 
-		verify_result = verify_solution(global_box, local_node_box_array,
-		                                x_array, numboxes, 0.06, verify_whole_domain);
+		//Now apply dirichlet boundary-conditions
+		//(Apply the 0-valued surfaces first, then the 1-valued surface last.)
+		{
+			std::cout << "imposing Dirichlet BC..." << std::endl;
+			timer_type dirbc_time  = mytimer();;
+
+			// This dependencies are inout and individual per impose_dirichlet.
+			for (size_t i = 0; i < numboxes; ++i) {
+
+				// TODO: Tasks here
+				// inout A_array[i] (full) b_array[i] (full)
+				// in mesh_array[i]
+				{
+					impose_dirichlet(0.0, A_array[i], b_array[i],
+					                 global_nx + 1, global_ny + 1, global_nz + 1,
+					                 mesh_array[i].ompss_bc_rows_0);
+
+					impose_dirichlet(1.0, A_array[i], b_array[i],
+					                 global_nx + 1, global_ny + 1, global_nz + 1,
+					                 mesh_array[i].ompss_bc_rows_1);
+				}
+			}
+
+			REGISTER_ELAPSED_TIME(dirbc_time, t_total);
+		}
+
+		#ifdef MINIFE_DEBUG
+		for (size_t i = 0; i < numboxes; ++i) {
+			A.write_matrix("A.mtx");
+			b.write_vector("b.vec");
+		}
+		#endif
+
+		//Transform global indices to local, set up communication information:
+		{
+			std::cout << "making matrix indices local..." << std::endl;
+			timer_type make_local_time = mytimer();;
+
+			// TODO: weak task here
+			make_local_matrix(A_array, numboxes);
+			REGISTER_ELAPSED_TIME(make_local_time, t_total);
+		}
+
+		#ifdef MINIFE_DEBUG
+		A.write_matrix("A_local.mtx");
+		b.write_vector("b_local.vec");
+		#endif
+
+		size_t global_nnz = compute_matrix_stats(A_array, numboxes, ydoc);
+
+		//Prepare to perform conjugate gradient solve:
+
+		const int max_iters = 200;
+		int num_iters = 0;
+		double rnorm = 0.0;
+		const double tol = std::numeric_limits<double>::epsilon();
+
+		timer_type cg_times[NUM_TIMERS];
+
+		t_total = mytimer() - t_start;
+
+		int verify_result = 0;
+
+		#if MINIFE_KERNELS != 0
+		std::cout.width(30);
+		std::cout << "Starting kernel timing loops ..." << std::endl;
+
+		max_iters = 500;
+		x.coefs[0] = 0.9;
+
+		time_kernels(A, b, x,
+		             matvec<MatrixType>(),
+		             max_iters, rnorm, cg_times);
+
+		num_iters = max_iters;
+		std::string title("Kernel timings");
+		#else
+
+		std::cout << "Starting CG solver ... " << std::endl;
+
+		cg_solve_all(A_array, numboxes, b_array, x_array,
+		             max_iters, tol, num_iters, rnorm, cg_times);
+
+		std::cout << "Final Resid Norm: " << rnorm << std::endl;
+
+		if (params.verify_solution > 0) {
+			#ifdef MINIFE_DEBUG
+			bool verify_whole_domain = true;
+			std::cout << "verifying solution..." << std::endl;
+			#else
+			bool verify_whole_domain = false;
+			std::cout << "verifying solution at ~ (0.5, 0.5, 0.5) ..." << std::endl;
+			#endif
+
+			verify_result = verify_solution(global_box, local_node_box_array,
+			                                x_array, numboxes, 0.06, verify_whole_domain);
+		}
+
+		#ifdef MINIFE_DEBUG
+		write_vector("x.vec", x);
+		#endif // MINIFE_DEBUG
+		std::string title("CG solve");
+		#endif
+
+		ydoc.get("Global Run Parameters")->add("ScalarType","double");
+		ydoc.get("Global Run Parameters")->add("GlobalOrdinalType","int");
+		ydoc.get("Global Run Parameters")->add("LocalOrdinalType","int");
+		ydoc.add(title,"");
+		ydoc.get(title)->add("Iterations",num_iters);
+		ydoc.get(title)->add("Final Resid Norm",rnorm);
+
+		const int global_nrows = global_nx * global_ny * global_nz;
+
+		//flops-per-mv, flops-per-dot, flops-per-waxpy:
+		double mv_flops = global_nnz * 2.0;
+		double dot_flops = global_nrows * 2.0;
+		double waxpy_flops = global_nrows * 3.0;
+
+		#if MINIFE_KERNELS == 0
+		//if MINIFE_KERNELS == 0 then we did a CG solve, and in that case
+		//there were num_iters+1 matvecs, num_iters*2 dots, and num_iters*3+2 waxpys.
+		mv_flops *= (num_iters + 1);
+		dot_flops *= (2 * num_iters);
+		waxpy_flops *= (3 * num_iters+2);
+		#else
+		//if MINIFE_KERNELS then we did one of each operation per iteration.
+		mv_flops *= num_iters;
+		dot_flops *= num_iters;
+		waxpy_flops *= num_iters;
+		#endif
+
+		const double total_flops = mv_flops + dot_flops + waxpy_flops;
+
+		double mv_mflops = -1;
+		if (cg_times[MATVEC] > 1.e-4)
+			mv_mflops = 1.e-6 * (mv_flops/cg_times[MATVEC]);
+
+		double dot_mflops = -1;
+		if (cg_times[DOT] > 1.e-4)
+			dot_mflops = 1.e-6 * (dot_flops/cg_times[DOT]);
+
+		double waxpy_mflops = -1;
+		if (cg_times[WAXPY] > 1.e-4)
+			waxpy_mflops = 1.e-6 *  (waxpy_flops/cg_times[WAXPY]);
+
+		double total_mflops = -1;
+		if (cg_times[TOTAL] > 1.e-4)
+			total_mflops = 1.e-6 * (total_flops/cg_times[TOTAL]);
+
+		ydoc.get(title)->add("WAXPY Time",cg_times[WAXPY]);
+		ydoc.get(title)->add("WAXPY Flops",waxpy_flops);
+		if (waxpy_mflops >= 0)
+			ydoc.get(title)->add("WAXPY Mflops",waxpy_mflops);
+		else
+			ydoc.get(title)->add("WAXPY Mflops","inf");
+
+		ydoc.get(title)->add("DOT Time",cg_times[DOT]);
+		ydoc.get(title)->add("DOT Flops",dot_flops);
+		if (dot_mflops >= 0)
+			ydoc.get(title)->add("DOT Mflops",dot_mflops);
+		else
+			ydoc.get(title)->add("DOT Mflops","inf");
+
+		ydoc.get(title)->add("MATVEC Time",cg_times[MATVEC]);
+		ydoc.get(title)->add("MATVEC Flops",mv_flops);
+		if (mv_mflops >= 0)
+			ydoc.get(title)->add("MATVEC Mflops",mv_mflops);
+		else
+			ydoc.get(title)->add("MATVEC Mflops","inf");
+
+		#ifdef MINIFE_FUSED
+		ydoc.get(title)->add("MATVECDOT Time",cg_times[MATVECDOT]);
+		ydoc.get(title)->add("MATVECDOT Flops",mv_flops);
+		if (mv_mflops >= 0)
+			ydoc.get(title)->add("MATVECDOT Mflops",mv_mflops);
+		else
+			ydoc.get(title)->add("MATVECDOT Mflops","inf");
+		#endif
+
+		#if MINIFE_KERNELS == 0
+		ydoc.get(title)->add("Total","");
+		ydoc.get(title)->get("Total")->add("Total CG Time",cg_times[TOTAL]);
+		ydoc.get(title)->get("Total")->add("Total CG Flops",total_flops);
+		if (total_mflops >= 0)
+			ydoc.get(title)->get("Total")->add("Total CG Mflops",total_mflops);
+		else
+			ydoc.get(title)->get("Total")->add("Total CG Mflops","inf");
+		ydoc.get(title)->add("Time per iteration",cg_times[TOTAL]/num_iters);
+		#endif
+
+		delete [] mesh_array;
+
+		delete [] A_array;
+		delete [] b_array;
+		delete [] x_array;
+
+		return verify_result;
 	}
-
-	#ifdef MINIFE_DEBUG
-	write_vector("x.vec", x);
-	#endif // MINIFE_DEBUG
-	std::string title("CG solve");
-	#endif
-
-	ydoc.get("Global Run Parameters")->add("ScalarType","double");
-	ydoc.get("Global Run Parameters")->add("GlobalOrdinalType","int");
-	ydoc.get("Global Run Parameters")->add("LocalOrdinalType","int");
-	ydoc.add(title,"");
-	ydoc.get(title)->add("Iterations",num_iters);
-	ydoc.get(title)->add("Final Resid Norm",rnorm);
-
-	const int global_nrows = global_nx * global_ny * global_nz;
-
-	//flops-per-mv, flops-per-dot, flops-per-waxpy:
-	double mv_flops = global_nnz * 2.0;
-	double dot_flops = global_nrows * 2.0;
-	double waxpy_flops = global_nrows * 3.0;
-
-	#if MINIFE_KERNELS == 0
-	//if MINIFE_KERNELS == 0 then we did a CG solve, and in that case
-	//there were num_iters+1 matvecs, num_iters*2 dots, and num_iters*3+2 waxpys.
-	mv_flops *= (num_iters + 1);
-	dot_flops *= (2 * num_iters);
-	waxpy_flops *= (3 * num_iters+2);
-	#else
-	//if MINIFE_KERNELS then we did one of each operation per iteration.
-	mv_flops *= num_iters;
-	dot_flops *= num_iters;
-	waxpy_flops *= num_iters;
-	#endif
-
-	const double total_flops = mv_flops + dot_flops + waxpy_flops;
-
-	double mv_mflops = -1;
-	if (cg_times[MATVEC] > 1.e-4)
-		mv_mflops = 1.e-6 * (mv_flops/cg_times[MATVEC]);
-
-	double dot_mflops = -1;
-	if (cg_times[DOT] > 1.e-4)
-		dot_mflops = 1.e-6 * (dot_flops/cg_times[DOT]);
-
-	double waxpy_mflops = -1;
-	if (cg_times[WAXPY] > 1.e-4)
-		waxpy_mflops = 1.e-6 *  (waxpy_flops/cg_times[WAXPY]);
-
-	double total_mflops = -1;
-	if (cg_times[TOTAL] > 1.e-4)
-		total_mflops = 1.e-6 * (total_flops/cg_times[TOTAL]);
-
-	ydoc.get(title)->add("WAXPY Time",cg_times[WAXPY]);
-	ydoc.get(title)->add("WAXPY Flops",waxpy_flops);
-	if (waxpy_mflops >= 0)
-		ydoc.get(title)->add("WAXPY Mflops",waxpy_mflops);
-	else
-		ydoc.get(title)->add("WAXPY Mflops","inf");
-
-	ydoc.get(title)->add("DOT Time",cg_times[DOT]);
-	ydoc.get(title)->add("DOT Flops",dot_flops);
-	if (dot_mflops >= 0)
-		ydoc.get(title)->add("DOT Mflops",dot_mflops);
-	else
-		ydoc.get(title)->add("DOT Mflops","inf");
-
-	ydoc.get(title)->add("MATVEC Time",cg_times[MATVEC]);
-	ydoc.get(title)->add("MATVEC Flops",mv_flops);
-	if (mv_mflops >= 0)
-		ydoc.get(title)->add("MATVEC Mflops",mv_mflops);
-	else
-		ydoc.get(title)->add("MATVEC Mflops","inf");
-
-	#ifdef MINIFE_FUSED
-	ydoc.get(title)->add("MATVECDOT Time",cg_times[MATVECDOT]);
-	ydoc.get(title)->add("MATVECDOT Flops",mv_flops);
-	if (mv_mflops >= 0)
-		ydoc.get(title)->add("MATVECDOT Mflops",mv_mflops);
-	else
-		ydoc.get(title)->add("MATVECDOT Mflops","inf");
-	#endif
-
-	#if MINIFE_KERNELS == 0
-	ydoc.get(title)->add("Total","");
-	ydoc.get(title)->get("Total")->add("Total CG Time",cg_times[TOTAL]);
-	ydoc.get(title)->get("Total")->add("Total CG Flops",total_flops);
-	if (total_mflops >= 0)
-		ydoc.get(title)->get("Total")->add("Total CG Mflops",total_mflops);
-	else
-		ydoc.get(title)->get("Total")->add("Total CG Mflops","inf");
-	ydoc.get(title)->add("Time per iteration",cg_times[TOTAL]/num_iters);
-	#endif
-
-	delete [] mesh_array;
-
-	delete [] A_array;
-	delete [] b_array;
-	delete [] x_array;
-
-	return verify_result;
-}
 
 }//namespace miniFE
 

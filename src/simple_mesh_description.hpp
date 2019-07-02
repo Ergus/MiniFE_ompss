@@ -252,21 +252,19 @@ namespace miniFE
 			ompss_bc_rows_1 = bc_rows_1;
 			ompssmap_ids_to_rows = map_ids_to_rows;
 
-			auto it1 = ompssmap_ids_to_rows.begin();
-			auto it2 = map_ids_to_rows.begin();
 		}
 
 		// Arrays allocations (boxes can go in local memory)
 		static void* operator new[](std::size_t sz)
 		{
 			void * const tmp = rrl_malloc(sz);
-			dbprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
+			dbvprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
 			return tmp;
 		}
 
 		static void operator delete[](void* ptr, std::size_t sz)
 		{
-			printf("Calling: %s, address %p size: %lu\n", __PRETTY_FUNCTION__, ptr, sz);
+			dbvprintf("Calling: %s, address %p size: %lu\n", __PRETTY_FUNCTION__, ptr, sz);
 			return rrl_free(ptr, sz);
 		}
 

@@ -81,6 +81,7 @@ void box_partition( int ip, int up, int axis, const Box &box, Box *p_box )
 	const int np = up - ip ;
 
 	if ( np == 1 ) {
+		assert(box.get_num_ids() != 0);
 		p_box[ip] = box;
 		return;
 	}
@@ -355,141 +356,6 @@ static void test_box( const Box& box , const int np )
 }
 
 /*--------------------------------------------------------------------*/
-
-static void test_maps( const Box& root_box , const int np )
-{
-  const int ghost = 1 ;
-  const int nx_global = root_box[0][1] - root_box[0][0] ;
-  const int ny_global = root_box[1][1] - root_box[1][0] ;
-  int ieq , i , j ;
-  std::vector<Box> pbox(np);
-  int **local_values ;
-  int **map_local_id ;
-  int **map_recv_pc ;
-  int **map_send_pc ;
-  int **map_send_id ;
-
-  box_partition( 0 , np , 2 , root_box , &pbox[0] );
-
-  local_values = (int **) malloc( sizeof(int*) * np );
-  map_local_id = (int **) malloc( sizeof(int*) * np );
-  map_recv_pc  = (int **) malloc( sizeof(int*) * np );
-  map_send_pc  = (int **) malloc( sizeof(int*) * np );
-  map_send_id  = (int **) malloc( sizeof(int*) * np );
-
-  /* Set each local value to the global equation number */
-
-  for ( ieq = i = 0 ; i < np ; ++i ) {
-    const Box& mybox = pbox[i] ;
-    const int nx = mybox[0][1] - mybox[0][0] ;
-    const int ny = mybox[1][1] - mybox[1][0] ;
-    const int nz = mybox[2][1] - mybox[2][0] ;
-    int ix , iy , iz ;
-
-    /* Generate the partition maps for this rank */
-    box_partition_maps( np , i , &pbox[0] , ghost ,
-                        & map_local_id[i] , & map_recv_pc[i] , 
-                        & map_send_pc[i] , & map_send_id[i] );
-
-    local_values[i] = (int *) malloc( sizeof(int) * map_recv_pc[i][np] );
-
-    for ( iz = -ghost ; iz < nz + ghost ; ++iz ) {
-    for ( iy = -ghost ; iy < ny + ghost ; ++iy ) {
-    for ( ix = -ghost ; ix < nx + ghost ; ++ix ) {
-      const int ieq = box_map_local(mybox,ghost,map_local_id[i],ix,iy,iz);
-
-      if ( 0 <= ieq ) {
-        const int ix_global = ix + mybox[0][0] ;
-        const int iy_global = iy + mybox[1][0] ;
-        const int iz_global = iz + mybox[2][0] ;
-
-        if ( root_box[0][0] <= ix_global && ix_global < root_box[0][1] &&
-             root_box[1][0] <= iy_global && iy_global < root_box[1][1] &&
-             root_box[2][0] <= iz_global && iz_global < root_box[2][1] ) {
-
-          local_values[i][ ieq ] = ix_global +
-                                   iy_global * nx_global +
-                                   iz_global * nx_global * ny_global ;
-        }
-        else {
-          local_values[i][ ieq ] = -1 ;
-        }
-      }
-    }
-    }
-    }
-  }
-
-  /* Pair-wise compare the local values */
-  /* i  == receiving processor rank */
-  /* ip == sending   processor rank */
-  /* j  == receiving processor data entry for message from 'ip' */
-  /* jp == sending   processor data entry for message to   'i' */
-
-  for ( i = 0 ; i < np ; ++i ) {
-    for ( j = 1 ; j < np ; ++j ) {
-      const int ip = ( i + j ) % np ;
-      const int jp = ( i + np - ip ) % np ;
-      const int nrecv = map_recv_pc[i] [j+1]  - map_recv_pc[i] [j] ;
-      const int nsend = map_send_pc[ip][jp+1] - map_send_pc[ip][jp] ;
-      int k ;
-      if ( nrecv != nsend ) {
-        fprintf(stderr,"P%d recv %d from P%d\n",i,nrecv,ip);
-        fprintf(stderr,"P%d send %d to   P%d\n",ip,nsend,i);
-        abort();
-      }
-      for ( k = 0 ; k < nrecv ; ++k ) {
-        const int irecv = map_recv_pc[i][j] + k ;
-        const int isend = map_send_pc[ip][jp] + k ;
-        const int val_irecv = local_values[i][irecv] ;
-        const int val_isend = local_values[ip][ map_send_id[ip][isend] ] ;
-        if ( val_irecv != val_isend ) {
-          fprintf(stderr,"P%d recv[%d] = %d , from P%d\n",i,k,val_irecv,ip);
-          fprintf(stderr,"P%d send[%d] = %d , to   P%d\n",ip,k,val_isend,i);
-          abort();
-        }
-      }
-    }
-  }
-
-  for ( i = 0 ; i < np ; ++i ) {
-    free( map_local_id[i] );
-    free( map_recv_pc[i] );
-    free( map_send_pc[i] );
-    free( map_send_id[i] );
-    free( local_values[i] );
-  }
-  free( map_send_id );
-  free( map_send_pc );
-  free( map_recv_pc );
-  free( map_local_id );
-  free( local_values );
-}
-
-/*--------------------------------------------------------------------*/
-
-int main( int argc , char * argv[] )
-{
-  int np_max = 256 ;
-  Box box = { 0 , 64 , 0 , 64 , 0 , 64 };
-  int np = 0 ;
-
-  switch( argc ) {
-  case 3:
-    sscanf(argv[1],"%d",&np);
-    sscanf(argv[2],"%dx%dx%d",& box[0][1] , & box[1][1] , & box[2][1] );
-    if ( 0 < np ) { test_box( box , np ); }
-    if ( 0 < np ) { test_maps( box , np ); }
-    break ;
-  default:
-    for ( np = 1 ; np <= np_max ; ++np ) {
-      test_box( box , np );
-      test_maps( box , np );
-    }
-    break ;
-  }
-  return 0 ;
-}
 
 #endif
 

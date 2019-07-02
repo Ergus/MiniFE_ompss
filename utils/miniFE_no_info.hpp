@@ -1,39 +1,13 @@
-//@HEADER
-// ************************************************************************
-//
-// MiniFE: Simple Finite Element Assembly and Solve
-// Copyright (2006-2013) Sandia Corporation
-//
-// Under terms of Contract DE-AC04-94AL85000, there is a non-exclusive
-// license for use of this work by or on behalf of the U.S. Government.
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful, but
-// WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; if not, write to the Free Software
-// Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
-// USA
-//
-// ************************************************************************
-//@HEADER
+#ifndef _./utils/miniFE_no_info.hpp
+#define _./utils/miniFE_no_info.hpp
 
-#ifndef miniFE_no_info_hpp
-#define miniFE_no_info_hpp
+#define MINIFE_HOSTNAME "Ergus"
+#define MINIFE_KERNEL_NAME "'Linux'"
+#define MINIFE_KERNEL_RELEASE "'5.1.15-arch1-1-ARCH'"
+#define MINIFE_PROCESSOR "'unknown'"
 
-#define MINIFE_HOSTNAME "unknown"
-#define MINIFE_KERNEL_NAME "unknown"
-#define MINIFE_KERNEL_RELEASE "unknown"
-#define MINIFE_PROCESSOR "unknown"
-
-#define MINIFE_CXX "unknown"
-#define MINIFE_CXXFLAGS "unknown"
+#define MINIFE_CXX "'/usr/bin/g++'"
+#define MINIFE_CXX_VERSION "'g++ (GCC) 9.1.0'"
+#define MINIFE_CXXFLAGS "'-O3 -DNDEBUG -std=c++11'"
 
 #endif

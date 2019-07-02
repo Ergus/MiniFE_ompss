@@ -51,7 +51,7 @@ namespace miniFE
 		double elem_diffusion_matrix[(Hex8::numNodesPerElem*(Hex8::numNodesPerElem+1))/2];
 		double elem_source_vector[Hex8::numNodesPerElem];
 
-		void get_elem_nodes_and_coords(const simple_mesh_description &mesh, int elemID)
+		inline void get_elem_nodes_and_coords(const simple_mesh_description &mesh, int elemID)
 		{
 			miniFE::get_elem_nodes_and_coords(mesh, elemID, elem_node_ids, elem_node_coords);
 		}

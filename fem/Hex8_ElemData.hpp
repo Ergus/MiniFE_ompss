@@ -34,7 +34,7 @@
 namespace miniFE
 {
 
-	void compute_gradient_values(double *grad_vals)
+	inline void compute_gradient_values(double *grad_vals)
 	{
 		double gpts[Hex8::numGaussPointsPerDim];
 		double gwts[Hex8::numGaussPointsPerDim];

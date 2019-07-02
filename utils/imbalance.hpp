@@ -48,10 +48,10 @@ namespace miniFE
 	const int LOWER = 0;
 	const int UPPER = 1;
 
-	void compute_imbalance(const Box &global_box, const Box *local_boxes,
-	                       const size_t numboxes,
-	                       float &largest_imbalance, float &std_dev,
-	                       YAML_Doc &doc, const bool record_in_doc)
+	inline void compute_imbalance(const Box &global_box, const Box *local_boxes,
+	                              const size_t numboxes,
+	                              float &largest_imbalance, float &std_dev,
+	                              YAML_Doc &doc, const bool record_in_doc)
 	{
 		int min_nrows = 0, max_nrows = 0, global_nrows = 0;
 		int min_proc = 0, max_proc = 0;
@@ -87,8 +87,8 @@ namespace miniFE
 		}
 	}
 
-	std::pair<int,int> decide_how_to_grow(const Box& global_box,
-	                                      const Box& local_box)
+	inline std::pair<int,int> decide_how_to_grow(const Box& global_box,
+	                                             const Box& local_box)
 	{
 		std::pair<int,int> result(NONE,UPPER);
 
@@ -125,8 +125,8 @@ namespace miniFE
 		return result;
 	}
 
-	std::pair<int,int> decide_how_to_shrink(const Box &global_box,
-	                                        const Box &local_box)
+	inline std::pair<int,int> decide_how_to_shrink(const Box &global_box,
+	                                               const Box &local_box)
 	{
 		std::pair<int,int> result(NONE,UPPER);
 
@@ -169,9 +169,9 @@ namespace miniFE
 		return result;
 	}
 
-	void add_imbalance(const Box &global_box, Box *local_boxes,
-	                   const size_t numboxes,
-	                   const float imbalance, YAML_Doc &doc)
+	inline void add_imbalance(const Box &global_box, Box *local_boxes,
+	                          const size_t numboxes,
+	                          const float imbalance, YAML_Doc &doc)
 	{
 		if (numboxes == 1)
 			return;

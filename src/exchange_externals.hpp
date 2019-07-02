@@ -48,7 +48,7 @@ namespace miniFE {
 		if (numboxes < 2)
 			return;
 
-		for (int id = 0; id < numboxes; ++id) {
+		for (size_t id = 0; id < numboxes; ++id) {
 
 			MatrixType &A = A_array[id];
 			Vector &x = x_array[id];
@@ -68,7 +68,7 @@ namespace miniFE {
 		}
 
 		// TODO:
-		for (int id = 0; id < numboxes; ++id) {
+		for (size_t id = 0; id < numboxes; ++id) {
 			MatrixType &A = A_array[id];
 			Vector &x = x_array[id];
 

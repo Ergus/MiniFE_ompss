@@ -53,13 +53,13 @@ namespace miniFE
 		static void* operator new[](std::size_t sz)
 		{
 			void * const tmp = rrl_malloc(sz);
-			dbprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
+			dbvprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
 			return tmp;
 		}
 
 		static void operator delete[](void* ptr, std::size_t sz)
 		{
-			printf("Calling: %s, address %p size: %lu\n", __PRETTY_FUNCTION__, ptr, sz);
+			dbvprintf("Calling: %s, address %p size: %lu\n", __PRETTY_FUNCTION__, ptr, sz);
 			return rrl_free(ptr, sz);
 		}
 
@@ -74,7 +74,8 @@ namespace miniFE
 				coefs[i] = 0.;
 		}
 
-		int startIndex, local_size;
+		int startIndex;
+		size_t local_size;
 		double *coefs;
 
 		void sum_into_vector(size_t num_indices,
@@ -91,25 +92,25 @@ namespace miniFE
 			}
 		}
 
-		void write(const std::string& filename, int id, int numboxes) const
+		void write(const std::string& filename, int id, size_t numboxes) const
 		{
 			std::ostringstream osstr;
 			osstr << filename << "." << numboxes << "." << id;
 			std::string full_name = osstr.str();
 			std::ofstream ofs(full_name.c_str());
 
-			for (size_t i = 0; i< local_size; ++i)
+			for (size_t i = 0; i < local_size; ++i)
 				ofs << startIndex + i << " " << coefs[i] << std::endl;
 		}
 
 		double dot(const Vector& y) const
 		{
-			const int n = local_size;
+			const size_t n = local_size;
 
 			assert(y.local_size >= n);
 
 			double result = 0.0;
-			for (int i = 0; i < n; ++i)
+			for (size_t i = 0; i < n; ++i)
 				result += coefs[i] * y.coefs[i];
 
 			return result;
@@ -118,19 +119,17 @@ namespace miniFE
 		double dot2() const
 		{
 			double result = 0.0;
-			for (int i = 0; i < local_size; ++i)
+			for (size_t i = 0; i < local_size; ++i)
 				result += coefs[i] * coefs[i];
 
 			return result;
 		}
-
-
 	};
 
 
 	inline std::ostream& operator <<(std::ostream &stream, const Vector &in) {
 		stream << "[ ";
-		for (int i = 0; i < in.local_size; ++i)
+		for (size_t i = 0; i < in.local_size; ++i)
 			stream << in.coefs[i] << "; ";
 		stream << "]"<< std::endl;
 		return stream;

@@ -18,6 +18,7 @@
 #ifndef OMPSS_UTILS_HPP
 #define OMPSS_UTILS_HPP
 
+#include <iostream>
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
@@ -30,11 +31,39 @@
 	}
 
 // Debug conditional macros here.
-#ifdef NDEBUG
-#define dbprintf(...)
-#else
+#ifndef NDEBUG
 #define dbprintf(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define dbprintf(...)
 #endif
+
+#if !defined NDEBUG && defined VERBOSE
+#define dbvprintf(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define dbvprintf(...)
+#endif
+
+#ifndef NDEBUG
+#define dbarray_to_stream(ARRAY, size, ...) \
+	array_to_stream(ARRAY, size, #ARRAY, ##__VA_ARGS__)
+#else
+#define dbarray_to_stream(...)
+#endif
+
+// General Purpose functions
+
+template <typename T>
+std::ostream &array_to_stream(const T *in, size_t size,
+                              std::string varname = "",
+                              const std::string sep = "\n",
+                              std::ostream &stream = std::cout)
+{
+	stream << varname << sep;
+	for (size_t i = 0; i < size; ++i)
+		stream << in[i] << sep;
+	return stream;
+}
+
 
 template <typename T>
 void reduce_sum(T &out, const T *in, size_t size)
@@ -54,7 +83,7 @@ static inline void *rrd_malloc(size_t size)
 {
 	void *ret = nanos6_dmalloc(size, nanos6_equpart_distribution, 1, NULL);
 	assert(ret != NULL);
-	dbprintf("Using nanos6_dmalloc [%p -> %p] size %d\n",
+	dbvprintf("Using nanos6_dmalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 
 	return ret;
@@ -62,7 +91,7 @@ static inline void *rrd_malloc(size_t size)
 
 static inline void rrd_free(void *in, size_t size)
 {
-	dbprintf("Using nanos6_dfree(%p)\n", in);
+	dbvprintf("Using nanos6_dfree(%p)\n", in);
 	nanos6_dfree(in, size);
 }
 
@@ -71,7 +100,7 @@ static inline void *rrl_malloc(size_t size)
 {
 	void *ret = nanos6_lmalloc(size);
 	assert(ret != NULL);
-	dbprintf("Using nanos6_lmalloc [%p -> %p] size %d\n",
+	dbvprintf("Using nanos6_lmalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 
 	return ret;
@@ -90,7 +119,7 @@ static inline void *rrl_calloc(size_t nmemb, size_t size)
 
 static inline void rrl_free(void *in, size_t size)
 {
-	dbprintf("Using nanos6_lfree(%p)\n", in);
+	dbvprintf("Using nanos6_lfree(%p)\n", in);
 	nanos6_lfree(in, size);
 }
 
@@ -103,6 +132,7 @@ void copy_local_to_global_task(T *vout, const T *vin, size_t size)
 	// in vin[0; size]
 	// out vout[0; size]
 	{
+		dbvprintf("Copy %ld bytes from %p -> %p\n", size, vin, vout);
 		memcpy(vout, vin, nbytes);
 	}
 
@@ -119,7 +149,7 @@ static inline void *rrd_malloc(size_t size)
 {
 	void *ret = malloc(size);
 	assert(ret != NULL);
-	dbprintf("Using libc dmalloc [%p -> %p] size %d\n",
+	dbvprintf("Using libc dmalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 
 	return ret;
@@ -127,7 +157,7 @@ static inline void *rrd_malloc(size_t size)
 
 static inline void rrd_free(void *in, size_t size  __attribute__((unused)))
 {
-	dbprintf("Using libc dfree(%p)\n", in);
+	dbvprintf("Using libc dfree(%p)\n", in);
 	free(in);
 }
 
@@ -135,7 +165,7 @@ static inline void *rrl_malloc(size_t size)
 {
 	void *ret = malloc(size);
 	assert(ret != NULL);
-	dbprintf("Using libc lmalloc [%p -> %p] size %d\n",
+	dbvprintf("Using libc lmalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 
 	return ret;
@@ -145,7 +175,7 @@ static inline void *rrl_calloc(size_t nmemb, size_t size)
 {
 	void *ret = calloc(nmemb, size);
 	assert(ret != NULL);
-	dbprintf("Using libc lcalloc [%p -> %p] size %d\n",
+	dbvprintf("Using libc lcalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 
 	return ret;
@@ -153,13 +183,14 @@ static inline void *rrl_calloc(size_t nmemb, size_t size)
 
 static inline void rrl_free(void *in, size_t size  __attribute__((unused)))
 {
-	dbprintf("Using libc lfree(%p)\n", in);
+	dbvprintf("Using libc lfree(%p)\n", in);
 	free(in);
 }
 
 template<typename T>
 void copy_local_to_global_task(T *vout, const T *vin, size_t size)
 {
+dbvprintf("Copy %ld bytes from %p -> %p\n", size, vin, vout);
 	memcpy(vout, vin, size * sizeof(T));
 }
 
