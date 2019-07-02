@@ -22,6 +22,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
+#include <set>
+#include <map>
 
 // General use macros Here
 #define REGISTER_ELAPSED_TIME(time_inc, time_total)			\
@@ -123,20 +125,31 @@ static inline void rrl_free(void *in, size_t size)
 	nanos6_lfree(in, size);
 }
 
-template<typename T>
-void copy_local_to_global_task(T *vout, const T *vin, size_t size)
+template<typename T, typename Container>
+size_t stl_to_global_task(T **vout, const Container &vin)
 {
-	const size_t nbytes = size * sizeof(T);
+	const size_t sz = vin.size();
 
-	// TODO: Task here
-	// in vin[0; size]
-	// out vout[0; size]
+	T *tmp = (T *) rrl_malloc(sz * sizeof(T));
+	*vout = (T *) rrd_malloc(sz * sizeof(T));
+
+	// Copy from container to local memory, this is initialization any way.
+	size_t i = 0;
+	for (const T &a : vin)
+		tmp[i++] = a;
+
+	dbvprintf("Copy %ld bytes -> %p\n", sz, (void *) vout);
+
+	#pragma oss task in(tmp[0;sz]) out(ret[0;sz])
 	{
-		dbvprintf("Copy %ld bytes from %p -> %p\n", size, vin, vout);
-		memcpy(vout, vin, nbytes);
+		memcpy((void *)*vout, (void *)vin, sz * sizeof(T));
 	}
+	#pragma taskwait
 
+	rrl_free(tmp, sz * sizeof(T));
+	return sz;
 }
+
 
 #define get_node_id() nanos6_get_cluster_node_id()
 #define get_nodes_nr() nanos6_get_cluster_nodes()
@@ -190,9 +203,27 @@ static inline void rrl_free(void *in, size_t size  __attribute__((unused)))
 template<typename T>
 void copy_local_to_global_task(T *vout, const T *vin, size_t size)
 {
-dbvprintf("Copy %ld bytes from %p -> %p\n", size, vin, vout);
+	dbvprintf("Copy %ld bytes from %p -> %p\n", size, vin, vout);
 	memcpy(vout, vin, size * sizeof(T));
 }
+
+template<typename T, typename Container>
+size_t stl_to_global_task(T **vout, const Container &vin)
+{
+	const size_t sz = vin.size();
+
+	*vout = (T *) rrd_malloc(sz * sizeof(T));
+
+	dbvprintf("Copy %ld bytes -> %p\n", sz, (void *) vout);
+
+	// Copy from container to local memory, this is initialization any way.
+	size_t i = 0;
+	for (const T &a : vin)
+		(*vout)[i++] = a;
+
+	return sz;
+}
+
 
 
 #define get_node_id() 0

@@ -291,14 +291,14 @@ namespace miniFE
 	void impose_dirichlet(double prescribed_value,
 	                      MatrixType &A, Vector &b,
 	                      int global_nx, int global_ny, int global_nz,
-	                      const ompss_static_set<int> &bc_rows)
+	                      const int *bc_rows_array, size_t bc_rows_size)
 	{
 		int first_local_row = A.nrows > 0 ? A.rows[0] : 0;
 		int last_local_row  = A.nrows > 0 ? A.rows[A.nrows - 1] : -1;
 
-		auto bc_iter = bc_rows.begin(), bc_end = bc_rows.end();
-		for (; bc_iter!=bc_end; ++bc_iter) {
-			const int row = *bc_iter;
+		for (size_t i = 0; i < bc_rows_size; ++i) {
+			const int row = bc_rows_array[i];
+
 			if (row >= first_local_row && row <= last_local_row) {
 				const size_t local_row = row - first_local_row;
 				b.coefs[local_row] = prescribed_value;
@@ -309,7 +309,10 @@ namespace miniFE
 		for (size_t i = 0; i < A.nrows; ++i) {
 			const int row = A.rows[i];
 
-			if (bc_rows.find(row) != bc_rows.end())
+			const bool found = std::binary_search(bc_rows_array,
+			                                      &bc_rows_array[bc_rows_size],
+			                                      row);
+			if (found)
 				continue;
 
 			size_t row_length = 0;
@@ -319,7 +322,12 @@ namespace miniFE
 
 			double sum = 0.0;
 			for(size_t j = 0; j < row_length; ++j) {
-				if (bc_rows.find(cols[j]) != bc_rows.end()) {
+				const bool found =
+					std::binary_search(bc_rows_array,
+					                   &bc_rows_array[bc_rows_size],
+					                   cols[j]);
+
+				if (found) {
 					sum += coefs[j];
 					coefs[j] = 0.0;
 				}

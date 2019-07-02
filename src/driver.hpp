@@ -133,10 +133,19 @@ namespace miniFE
 			}
 		}
 
+		
 		simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
 
-		for (size_t i = 0; i < numboxes; ++i)
-			mesh_array[i].init(global_box, local_boxes_array, local_node_box_array, i, numboxes);
+		for (size_t i = 0; i < numboxes; ++i) {
+			#pragma oss task in(global_box) \
+				in(local_boxes_array[0; numboxes])	\
+				in(local_node_box_array[0; numboxes])	\
+				inout (mesh_array[i])
+			{
+				mesh_array[i].init(global_box, local_boxes_array, \
+				                   local_node_box_array, i, numboxes);
+			}
+		}
 
 		// Taskwait here
 		timer_type mesh_fill = mytimer() - t0;
@@ -219,11 +228,13 @@ namespace miniFE
 				{
 					impose_dirichlet(0.0, A_array[i], b_array[i],
 					                 global_nx + 1, global_ny + 1, global_nz + 1,
-					                 mesh_array[i].ompss_bc_rows_0);
+					                 mesh_array[i].ompss2_bc_rows_0,
+					                 mesh_array[i].bc_rows_0_size);
 
 					impose_dirichlet(1.0, A_array[i], b_array[i],
 					                 global_nx + 1, global_ny + 1, global_nz + 1,
-					                 mesh_array[i].ompss_bc_rows_1);
+					                 mesh_array[i].ompss2_bc_rows_1,
+					                 mesh_array[i].bc_rows_1_size);
 				}
 			}
 

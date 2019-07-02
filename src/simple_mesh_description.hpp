@@ -31,7 +31,8 @@
 
 #include <utils.hpp>
 
-#include "ompss/ompss_static_set.hpp"
+#include "ompss_utils.hpp"
+//#include "ompss/ompss_static_set.hpp"
 #include "ompss/ompss_static_map.hpp"
 
 #include "Box.hpp"
@@ -248,8 +249,9 @@ namespace miniFE
 			}
 
 			// Copy the sets to ompss supported ones.
-			ompss_bc_rows_0 = bc_rows_0;
-			ompss_bc_rows_1 = bc_rows_1;
+			bc_rows_0_size = stl_to_global_task(&ompss2_bc_rows_0, bc_rows_0);
+			bc_rows_1_size = stl_to_global_task(&ompss2_bc_rows_1, bc_rows_1);
+
 			ompssmap_ids_to_rows = map_ids_to_rows;
 
 		}
@@ -264,7 +266,8 @@ namespace miniFE
 
 		static void operator delete[](void* ptr, std::size_t sz)
 		{
-			dbvprintf("Calling: %s, address %p size: %lu\n", __PRETTY_FUNCTION__, ptr, sz);
+			dbvprintf("Calling: %s, address %p size: %lu\n",
+			          __PRETTY_FUNCTION__, ptr, sz);
 			return rrl_free(ptr, sz);
 		}
 
@@ -287,8 +290,11 @@ namespace miniFE
 		// TODO: this 3 can be substituted by arrays if there are
 		// problems in the future.
 		// But required use std::find, std_lower_bounds to reimplement functions
-		ompss_static_set<int> ompss_bc_rows_0;
-		ompss_static_set<int> ompss_bc_rows_1;
+		int *ompss2_bc_rows_0;
+		int *ompss2_bc_rows_1;
+
+		size_t bc_rows_0_size, bc_rows_1_size;
+
 		ompss_static_map<int,int> ompssmap_ids_to_rows;
 
 		Box global_box;
