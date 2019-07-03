@@ -31,11 +31,160 @@
 
 #include "utils.hpp"
 #include "ompss_utils.hpp"
+#include "CSRMatrix.hpp"
 
 #include <vector>
 #include <map>
 
 namespace miniFE {
+
+	#pragma oss task			\
+		inout(A)			\
+		in(nrows_array[0; numboxes])	\
+		in(start_row_array[0; numboxes])	\
+		in(stop_row_array[0; numboxes])		\
+		out(recv_list_local[0; numboxes])	\
+		out(nrecv_list_local)			\
+		out(recv_length_local[0; numboxes])	\
+		out(nrecv_length_local)
+	void fill_recv_task(CSRMatrix *A,
+		int id,
+		int numboxes,
+		const size_t *nrows_array,
+		const int *start_row_array,
+		const int *stop_row_array,
+		int *recv_list_local,
+		int &nrecv_list_local,
+		int *recv_length_local,
+		int &nrecv_length_local)
+	{
+
+		// First count and find the external elements
+		// And invert the externals
+		size_t num_external = 0;
+		std::map<int,int> externals;
+		std::vector<int> external_index_vector; // temporal.
+		const int start_row = start_row_array[id];
+		const int stop_row = stop_row_array[id];
+		const int local_nrow = nrows_array[id];
+		for (size_t i = 0; i < A->nrows; ++i) {
+			int *Acols = NULL;
+			double *Acoefs = NULL;
+			size_t row_len = 0;
+			A->get_row_pointers(A->rows[i], row_len, Acols, Acoefs);
+
+			for (size_t j = 0; j < row_len; ++j) {
+				const int cur_ind = Acols[j];
+
+				if (start_row <= cur_ind &&
+				    cur_ind <= stop_row) {
+					Acols[j] -= start_row;
+				} else { // Must find out if we have already set up this point
+					if (externals.find(cur_ind) == externals.end()) {
+						externals[cur_ind] = num_external++;
+						external_index_vector.push_back(cur_ind);
+					}
+					// Mark index as external by adding 1 and negating it
+					Acols[j] = -(Acols[j] + 1);
+				}
+			}
+		}
+
+		// Go through list of externals and find the processor that owns each
+		std::vector<int> external_processor_vector(num_external, -1);
+
+		for (size_t i = 0; i < num_external; ++i) {
+			const int cur_ind = external_index_vector[i];
+			for (int j = numboxes - 1; j >= 0; --j) {
+				if (0 <= start_row_array[j] &&
+				    start_row_array[j] <= cur_ind && cur_ind <= stop_row_array[j]) {
+					external_processor_vector[i] = j;
+					break;
+				}
+			}
+			// test if a processor was found for this ind
+			assert(external_processor_vector[i] >= 0);
+		}
+
+		// Filling the externals
+		int *external_local_index_local = (int *) rrl_malloc(num_external * sizeof(int));
+		for (size_t i = 0; i < num_external; ++ i)
+			external_local_index_local[i] = -1; // initialize to -1
+
+		int *external_grouped_index_local = (int *) rrl_malloc(num_external * sizeof(int));
+		size_t count = 0, count_proc = 0;
+		// TODO: probably this needs to be a task
+		for (size_t i = 0; i < num_external; ++i) {
+			if (external_local_index_local[i] < 0) {
+				external_local_index_local[i] = count + nrows_array[id];
+				external_grouped_index_local[count] = external_index_vector[i];
+				++count;
+				int count_i = 1;
+
+				for(size_t j = i + 1; j < num_external; ++j) {
+					if (external_processor_vector[j] ==
+					    external_processor_vector[i]) {
+						external_local_index_local[j]
+							= local_nrow + count;
+						external_grouped_index_local[count]
+							= external_index_vector[j];
+
+						++count;
+						++count_i;
+					}
+				}
+				recv_list_local[count_proc] = external_processor_vector[i];
+
+				recv_length_local[count_proc] = count_i;
+				++count_proc;
+			}
+		}
+
+		// Copies to simplify tasks
+		nrecv_list_local = count_proc;
+		nrecv_length_local = num_external;
+
+		// To write in A
+		A->nrecv_neighbors = count_proc;
+		A->nexternals = num_external;
+		A->recv_neighbors = (int *) rrd_malloc(count_proc * sizeof(int));
+		A->recv_ptr = (double **) rrd_malloc(count_proc * sizeof(double *));
+		A->recv_length = (int *) rrd_malloc(count_proc * sizeof(int));
+		A->external_index = (int *) rrd_malloc(num_external * sizeof(int));
+
+		// TODO: reassign pointers instead of copy
+		// This copy creates tasks internally
+		copy_local_to_global_task(A->recv_neighbors,
+		                          recv_list_local, count_proc);
+		copy_local_to_global_task(A->recv_length,
+		                          recv_length_local, count_proc);
+		copy_local_to_global_task(A->external_index,
+		                          external_grouped_index_local, num_external);
+
+		//Change index of externals
+		int count_assert = 0;
+		for (size_t i = 0; i < A->nrows; ++i) {
+			int *Acols = NULL;
+			double *Acoefs = NULL;
+			size_t row_len = 0;
+			A->get_row_pointers(A->rows[i], row_len, Acols, Acoefs);
+
+			for (size_t j = 0; j < row_len; ++j) {
+				if (Acols[j] < 0) { // Change index values of externals
+					const int cur_ind = -Acols[j] - 1;
+					Acols[j] = external_local_index_local[externals[cur_ind]];
+					++count_assert;
+				}
+			}
+		}
+
+		#pragma oss taskwait
+		// Release local memory
+		rrl_free(external_local_index_local, num_external * sizeof(int));
+		rrl_free(external_grouped_index_local, num_external * sizeof(int));
+	}
+
+
 
 	template<typename MatrixType>
 	void make_local_matrix(MatrixType *A_array, size_t numboxes)
@@ -93,142 +242,16 @@ namespace miniFE {
 			int *recv_list_local = &recv_list_global[id * numboxes];
 			int *recv_length_local = &recv_length_global[id * numboxes];
 
-			//Tasks here
-			// in nrows_array[0; numboxes]
-			// in start_row_array[0; numboxes]
-			// in stop_row_array[0; numboxes]
-			//
-			// out recv_list_local[0; numboxes] // list of processes
-			// out nrecv_list_local[id]         // numbers of processes
-			//
-			// out recv_length_local[0; numboxes] // Number of elements/process
-			// out nrecv_length_global[id]        // Total of elements to receive
-			// inout A_array[id] (full A)
-			{
-				MatrixType &A = A_array[id];
-				// First count and find the external elements
-				// And invert the externals
-				size_t num_external = 0;
-				std::map<int,int> externals;
-				std::vector<int> external_index_vector; // temporal.
-				const int start_row = start_row_array[id];
-				const int stop_row = stop_row_array[id];
-				const int local_nrow = nrows_array[id];
-				for (size_t i = 0; i < A_array[id].nrows; ++i) {
-					int *Acols = NULL;
-					double *Acoefs = NULL;
-					size_t row_len = 0;
-					A.get_row_pointers(A.rows[i], row_len, Acols, Acoefs);
+			fill_recv_task(&A_array[id], id, numboxes,
+			               nrows_array,
+			               start_row_array,
+			               stop_row_array,
+			               recv_list_local,
+			               nrecv_list_global[id],
+			               recv_length_local,
+			               nrecv_length_global[id]);
 
-					for (size_t j = 0; j < row_len; ++j) {
-						const int cur_ind = Acols[j];
 
-						if (start_row <= cur_ind &&
-						    cur_ind <= stop_row) {
-							Acols[j] -= start_row;
-						} else { // Must find out if we have already set up this point
-							if (externals.find(cur_ind) == externals.end()) {
-								externals[cur_ind] = num_external++;
-								external_index_vector.push_back(cur_ind);
-							}
-							// Mark index as external by adding 1 and negating it
-							Acols[j] = -(Acols[j] + 1);
-						}
-					}
-				}
-
-				// Go through list of externals and find the processor that owns each
-				std::vector<int> external_processor_vector(num_external, -1);
-
-				for (size_t i = 0; i < num_external; ++i) {
-					const int cur_ind = external_index_vector[i];
-					for (int j = numboxes - 1; j >= 0; --j) {
-						if (0 <= start_row_array[j] &&
-						    start_row_array[j] <= cur_ind && cur_ind <= stop_row_array[j]) {
-							external_processor_vector[i] = j;
-							break;
-						}
-					}
-					// test if a processor was found for this ind
-					assert(external_processor_vector[i] >= 0);
-				}
-
-				// Filling the externals
-				int *external_local_index_local = (int *) rrl_malloc(num_external * sizeof(int));
-				for (size_t i = 0; i < num_external; ++ i)
-					external_local_index_local[i] = -1; // initialize to -1
-
-				int *external_grouped_index_local = (int *) rrl_malloc(num_external * sizeof(int));
-				size_t count = 0, count_proc = 0;
-				// TODO: probably this needs to be a task
-				for (size_t i = 0; i < num_external; ++i) {
-					if (external_local_index_local[i] < 0) {
-						external_local_index_local[i] = count + nrows_array[id];
-						external_grouped_index_local[count] = external_index_vector[i];
-						++count;
-						int count_i = 1;
-
-						for(size_t j = i + 1; j < num_external; ++j) {
-							if (external_processor_vector[j] ==
-							    external_processor_vector[i]) {
-								external_local_index_local[j]
-									= local_nrow + count;
-								external_grouped_index_local[count]
-									= external_index_vector[j];
-
-								++count;
-								++count_i;
-							}
-						}
-						recv_list_local[count_proc] = external_processor_vector[i];
-
-						recv_length_local[count_proc] = count_i;
-						++count_proc;
-					}
-				}
-
-				// Copies to simplify tasks
-				nrecv_list_global[id] = count_proc;
-				nrecv_length_global[id] = num_external;
-
-				// To write in A
-				A.nrecv_neighbors = count_proc;
-				A.nexternals = num_external;
-				A.recv_neighbors = (int *) rrd_malloc(count_proc * sizeof(int));
-				A.recv_ptr = (double **) rrd_malloc(count_proc * sizeof(double *));
-				A.recv_length = (int *) rrd_malloc(count_proc * sizeof(int));
-				A.external_index = (int *) rrd_malloc(num_external * sizeof(int));
-
-				// TODO: reassign pointers instead of copy
-				// copy creates tasks internally
-				copy_local_to_global_task(A.recv_neighbors,
-				                          recv_list_local, count_proc);
-				copy_local_to_global_task(A.recv_length,
-				                          recv_length_local, count_proc);
-				copy_local_to_global_task(A.external_index,
-				                          external_grouped_index_local, num_external);
-
-				int count_assert = 0;
-				for (size_t i = 0; i < A_array[id].nrows; ++i) {
-					int *Acols = NULL;
-					double *Acoefs = NULL;
-					size_t row_len = 0;
-					A.get_row_pointers(A.rows[i], row_len, Acols, Acoefs);
-
-					for (size_t j = 0; j < row_len; ++j) {
-						if (Acols[j] < 0) { // Change index values of externals
-							const int cur_ind = -Acols[j] - 1;
-							Acols[j] = external_local_index_local[externals[cur_ind]];
-							++count_assert;
-						}
-					}
-				}
-
-				// TODO: taskwait
-				// Release local memory
-				rrl_free(external_local_index_local, num_external * sizeof(int));
-				rrl_free(external_grouped_index_local, num_external * sizeof(int));
-			}
 		}
 
 		// Fill send Information

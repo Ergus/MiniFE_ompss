@@ -125,6 +125,21 @@ static inline void rrl_free(void *in, size_t size)
 	nanos6_lfree(in, size);
 }
 
+template<typename T>
+void copy_local_to_global_task(T *vout, const T *vin, size_t size)
+{
+	const size_t nbytes = size * sizeof(T);
+
+	dbvprintf("Copy %ld bytes from %p -> %p\n", nbytes, vin, vout);
+	#pragma oss task			\
+		in(vin[0; size])		\
+		out(vout[0; size])
+	{
+		memcpy(vout, vin, size * sizeof(T));
+	}
+}
+
+
 template<typename T, typename Container>
 size_t stl_to_global_task(T **vout, const Container &vin)
 {
