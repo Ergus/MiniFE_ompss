@@ -38,9 +38,9 @@
 
 namespace miniFE {
 
-	#pragma oss task			\
-		inout(A)			\
-		in(nrows_array[0; numboxes])	\
+	#pragma oss task				\
+		inout(A)				\
+		in(nrows_array[0; numboxes])		\
 		in(start_row_array[0; numboxes])	\
 		in(stop_row_array[0; numboxes])		\
 		out(recv_list_local[0; numboxes])	\
@@ -48,15 +48,15 @@ namespace miniFE {
 		out(recv_length_local[0; numboxes])	\
 		out(nrecv_length_local)
 	void fill_recv_task(CSRMatrix *A,
-		int id,
-		int numboxes,
-		const size_t *nrows_array,
-		const int *start_row_array,
-		const int *stop_row_array,
-		int *recv_list_local,
-		int &nrecv_list_local,
-		int *recv_length_local,
-		int &nrecv_length_local)
+	                    size_t id,
+	                    size_t numboxes,
+	                    const size_t *nrows_array,
+	                    const int *start_row_array,
+	                    const int *stop_row_array,
+	                    int *recv_list_local,
+	                    int &nrecv_list_local,
+	                    int *recv_length_local,
+	                    int &nrecv_length_local)
 	{
 
 		// First count and find the external elements
@@ -67,6 +67,7 @@ namespace miniFE {
 		const int start_row = start_row_array[id];
 		const int stop_row = stop_row_array[id];
 		const int local_nrow = nrows_array[id];
+
 		for (size_t i = 0; i < A->nrows; ++i) {
 			int *Acols = NULL;
 			double *Acoefs = NULL;
@@ -184,6 +185,168 @@ namespace miniFE {
 		rrl_free(external_grouped_index_local, num_external * sizeof(int));
 	}
 
+	// Tasks here
+	// in A_array[id]
+	// in nrows_array[id]
+	// in start_row_array[id]
+	// in stop_row_array[id]
+	//
+	// in recv_list_global[0; numboxes * numboxes]
+	// in nrecv_list_global[0; numboxes]              // numbers of processes
+	//
+	// in recv_length_global[0; numboxes * numboxes] // Number of elements/process
+	// in nrecv_length_global[0; numboxes]          // Total of elements to receive
+	// inout A (full A)
+
+	// out send_list_local[0; numboxes]
+	// out nsend_list_global[id]
+	// out send_length_local[0; numboxes]
+	// out nsend_length_local[id]
+
+	// TODO: The receive_list should be the same than the send list.
+	// But this method is saver
+	// This can be improved using weak dependencies in this level
+	// Otherwise this will be serialized due to the inout
+	#pragma oss task						\
+		in(A_array[0: id-1])					\
+		inout(A)						\
+		in(A_array[id + 1; numboxes])				\
+		in(nrows_array[0; numboxes])				\
+		in(start_row_array[0; numboxes])			\
+		in(stop_row_array[0; numboxes])				\
+		in(recv_list_global[0; numboxes * numboxes])		\
+		in(nrecv_list_global[0; numboxes])			\
+		in(recv_length_global[0; numboxes * numboxes])		\
+		in(nrecv_length_global[0; numboxes])			\
+		out(send_list_local[0; numboxes])			\
+		out(nsend_list_local)					\
+		out(send_length_local[0; numboxes])			\
+		out(nsend_length_local)
+	void fill_send_task(CSRMatrix *A,
+	                    CSRMatrix *A_array,
+	                    size_t id,
+	                    size_t numboxes,
+	                    const size_t *nrows_array,
+	                    const int *start_row_array,
+	                    const int *stop_row_array,
+	                    const int *recv_list_global,
+	                    const int *nrecv_list_global,
+	                    const int *recv_length_global,
+	                    const int *nrecv_length_global,
+	                    int *send_list_local,
+	                    int &nsend_list_local,
+	                    int *send_length_local,
+	                    int &nsend_length_local)
+	{
+		///////////////////////////////////////////////////////////////////////
+		///
+		// Make a list of the neighbors that will send information to update our
+		// external elements (in the order that we will receive this information).
+		///
+		///////////////////////////////////////////////////////////////////////
+
+		// Construct send_list (substitutes send-recv code)
+		// Send a 0 length message to each of our recv neighbors
+		size_t count = 0, count_i = 0, count_proc = 0;
+		for (size_t i = 0; i < numboxes; ++i) {
+			if (i != id) { // Not send to myself
+				const int nrecv_list_remote_i = nrecv_list_global[i];
+				const int *recv_list_i = &recv_list_global[i * numboxes];
+				const int *recv_length_i = &recv_length_global[i * numboxes];
+				count_i = 0;
+
+				for (int j = 0; j < nrecv_list_remote_i; ++j) {
+					if ((size_t)recv_list_i[j] == id) {
+						const int send_i = recv_length_i[j];
+						send_list_local[count_proc] = i;
+						send_length_local[count_proc] = send_i;
+						count += send_i;
+						++count_proc;
+						++count_i;
+						assert(count_i == 1);
+						assert(count_proc < numboxes);
+						// TODO: break here, but keep this now to test
+					}
+				}
+			}
+		}
+
+		nsend_list_local = count_proc;
+		nsend_length_local = count;
+
+		A->nsend_neighbors = count_proc;
+		A->nelements_to_send = count;
+		A->send_neighbors = (int *) rrd_malloc(count_proc * sizeof(int));
+		A->send_length = (int *) rrd_malloc(count_proc * sizeof(int));
+		A->elements_to_send = (int *) rrd_malloc(count * sizeof(int));
+		A->send_buffer = (double *) rrd_malloc(count * sizeof(double));
+
+		// Remember this creates tasks internally
+		copy_local_to_global_task(A->send_neighbors, send_list_local, count_proc);
+		copy_local_to_global_task(A->send_length, send_length_local, count_proc);
+
+		int *elements_to_send_local = (int *) rrl_malloc(count * sizeof(int));
+
+		// Fill the elements_to_send array
+		const int start_row = start_row_array[id];
+		const int stop_row = stop_row_array[id];
+		int start_local = 0;
+		for (size_t i = 0; i < count_proc; ++i) { // Iterate over neighbors list
+			const size_t send_neighbor_id = send_list_local[i]; // neighbor
+
+			assert(send_neighbor_id < numboxes);
+
+			// number of neighbors that will send to neighbors
+			const int nrecv_list_id =
+				nrecv_list_global[send_neighbor_id];
+
+			// list of neighbors of the send_neighbors size (nrecv_list_id)
+			const int *recv_list_id =
+				&recv_list_global[send_neighbor_id * numboxes];
+
+			const int *recv_length_id =
+				&recv_length_global[send_neighbor_id * numboxes];
+
+			int start_remote = 0;
+			for (int j = 0; j < nrecv_list_id; ++j) {
+				if ((size_t)recv_list_id[j] == id) {  // If I am the sender
+					// Where I will put the elements for this neighbors
+					int *ptr_local = &(elements_to_send_local[start_local]);
+
+					// TODO: Task here
+					// inform the remote about my pointer
+					A_array[send_neighbor_id].recv_ptr[j] =
+						&A->send_buffer[start_local];
+
+					// Where the neighbor has the ids I will send to it
+					const int *ptr_remote =
+						&(A_array[send_neighbor_id].external_index[start_remote]);
+					// How many elements I will send to it
+					const int nsend_to_id = recv_length_id[j];
+
+					for (int k = 0; k < nsend_to_id; ++k) {
+						const int id_to_send_global = ptr_remote[k];
+
+						// Assert I have this element
+						assert(start_row <= id_to_send_global);
+						assert(id_to_send_global <= stop_row);
+
+						ptr_local[k] = id_to_send_global - start_row;
+					}
+					start_local += nsend_to_id;
+				}
+				start_remote += recv_length_id[j];
+			}
+		}
+
+		// The elements_id is filled and moved to relative indices.
+		copy_local_to_global_task(A->elements_to_send, elements_to_send_local, count);
+
+		rrl_free(elements_to_send_local, count * sizeof(int));
+
+		A->num_cols = nrows_array[id] + nrecv_length_global[id];
+		A->has_local_indices = true;
+	}
 
 
 	template<typename MatrixType>
@@ -213,7 +376,7 @@ namespace miniFE {
 		int *send_length_global = (int *) rrd_malloc(numboxes * numboxes * sizeof(int));
 		int *nsend_length_global = (int *) rrd_malloc(numboxes * sizeof(int));
 
-		// Bound information
+		// Boundary information
 		for (size_t id = 0; id < numboxes; ++id) {
 			#pragma oss task		\
 				in(A_array[id])		\
@@ -242,6 +405,7 @@ namespace miniFE {
 			int *recv_list_local = &recv_list_global[id * numboxes];
 			int *recv_length_local = &recv_length_global[id * numboxes];
 
+			// This is already a task (look before)
 			fill_recv_task(&A_array[id], id, numboxes,
 			               nrows_array,
 			               start_row_array,
@@ -260,135 +424,23 @@ namespace miniFE {
 			int *send_list_local = &send_list_global[id * numboxes];
 			int *send_length_local = &send_length_global[id * numboxes];
 
-			// Tasks here
-			// in A_array[id]
-			// in nrows_array[id]
-			// in start_row_array[id]
-			// in stop_row_array[id]
-			//
-			// in recv_list_global[0; numboxes * numboxes]
-			// in nrecv_list_global[0; numboxes]              // numbers of processes
-			//
-			// in recv_length_global[0; numboxes * numboxes] // Number of elements/process
-			// in nrecv_length_global[0; numboxes]          // Total of elements to receive
-			// inout A (full A)
 
-			// out send_list_local[0; numboxes]
-			// out nsend_list_global[id]
-			// out send_length_local[0; numboxes]
-			// out nsend_length_local[id]
-			{
-				///////////////////////////////////////////////////////////////////////
-				///
-				// Make a list of the neighbors that will send information to update our
-				// external elements (in the order that we will receive this information).
-				///
-				///////////////////////////////////////////////////////////////////////
+			fill_send_task(&A_array[id],
+			               A_array,
+			               id,
+			               numboxes,
+			               nrows_array,
+			               start_row_array,
+			               stop_row_array,
+			               recv_list_global,
+			               nrecv_list_global,
+			               recv_length_global,
+			               nrecv_length_global,
+			               send_list_local,
+			               nsend_list_global[id],
+			               send_length_local,
+			               nsend_length_global[id]);
 
-				// Construct send_list (substitutes send-recv code)
-				// Send a 0 length message to each of our recv neighbors
-				MatrixType &A = A_array[id];
-				size_t count = 0, count_i = 0, count_proc = 0;
-				for (size_t i = 0; i < numboxes; ++i) {
-					if (i != id) { // Not send to myself
-						const int nrecv_list_remote_i = nrecv_list_global[i];
-						const int *recv_list_i = &recv_list_global[i * numboxes];
-						const int *recv_length_i = &recv_length_global[i * numboxes];
-						count_i = 0;
-
-						for (int j = 0; j < nrecv_list_remote_i; ++j) {
-							if ((size_t)recv_list_i[j] == id) {
-								const int send_i = recv_length_i[j];
-								send_list_local[count_proc] = i;
-								send_length_local[count_proc] = send_i;
-								count += send_i;
-								++count_proc;
-								++count_i;
-								assert(count_i == 1);
-								assert(count_proc < numboxes);
-								// TODO: break here, but keep this now to test
-							}
-						}
-					}
-				}
-
-				nsend_list_global[id] = count_proc;
-				nsend_length_global[id] = count;
-
-				A.nsend_neighbors = count_proc;
-				A.nelements_to_send = count;
-				A.send_neighbors = (int *) rrd_malloc(count_proc * sizeof(int));
-				A.send_length = (int *) rrd_malloc(count_proc * sizeof(int));
-				A.elements_to_send = (int *) rrd_malloc(count * sizeof(int));
-				A.send_buffer = (double *) rrd_malloc(count * sizeof(double));
-
-				// Remember this creates tasks internally
-				copy_local_to_global_task(A.send_neighbors, send_list_local, count_proc);
-				copy_local_to_global_task(A.send_length, send_length_local, count_proc);
-
-				int *elements_to_send_local = (int *) rrl_malloc(count * sizeof(int));
-
-
-				// Fill the elements_to_send array
-				const int start_row = start_row_array[id];
-				const int stop_row = stop_row_array[id];
-				int start_local = 0;
-				for (size_t i = 0; i < count_proc; ++i) { // Iterate over neighbors list
-					const size_t send_neighbor_id = send_list_local[i]; // neighbor
-
-					assert(send_neighbor_id < numboxes);
-
-					// number of neighbors that will send to neighbors
-					const int nrecv_list_id =
-						nrecv_list_global[send_neighbor_id];
-
-					// list of neighbors of the send_neighbors size (nrecv_list_id)
-					const int *recv_list_id =
-						&recv_list_global[send_neighbor_id * numboxes];
-
-					const int *recv_length_id =
-						&recv_length_global[send_neighbor_id * numboxes];
-
-					int start_remote = 0;
-					for (int j = 0; j < nrecv_list_id; ++j) {
-						if ((size_t)recv_list_id[j] == id) {  // If I am the sender
-							// Where I will put the elements for this neighbors
-							int *ptr_local = &(elements_to_send_local[start_local]);
-
-							// TODO: Task here
-							// inform the remote about my pointer
-							A_array[send_neighbor_id].recv_ptr[j] =
-								&A.send_buffer[start_local];
-
-							// Where the neighbor has the ids I will send to it
-							const int *ptr_remote =
-								&(A_array[send_neighbor_id].external_index[start_remote]);
-							// How many elements I will send to it
-							const int nsend_to_id = recv_length_id[j];
-
-							for (int k = 0; k < nsend_to_id; ++k) {
-								const int id_to_send_global = ptr_remote[k];
-
-								// Assert I have this element
-								assert(start_row <= id_to_send_global);
-								assert(id_to_send_global <= stop_row);
-
-								ptr_local[k] = id_to_send_global - start_row;
-							}
-							start_local += nsend_to_id;
-						}
-						start_remote += recv_length_id[j];
-					}
-				}
-
-				// The elements_id is filled and moved to relative indices.
-				copy_local_to_global_task(A.elements_to_send, elements_to_send_local, count);
-
-				rrl_free(elements_to_send_local, count * sizeof(int));
-
-				A.num_cols = nrows_array[id] + nrecv_length_global[id];
-				A.has_local_indices = true;
-			}
 		}
 
 		rrd_free(nrows_array, numboxes * sizeof(size_t));
