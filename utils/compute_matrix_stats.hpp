@@ -60,7 +60,7 @@ size_t compute_matrix_stats(const MatrixType *A_array, int numboxes, YAML_Doc& y
 		// in A_array[i].num_nonzeros
 		// out local_nrows[i]
 		local_nrows[i] = A_array[i].nrows;
-		dlocal_nnz[i] = A_array[i].num_nonzeros;
+		dlocal_nnz[i] = A_array[i].nnz;
 	}
 
 	// TODO taskwait here

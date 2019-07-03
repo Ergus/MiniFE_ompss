@@ -60,9 +60,8 @@ namespace miniFE
 		for(size_t i=0; iter != end; ++iter, ++i) {
 			elemIDs[i] = get_id(global_elems_x, global_elems_y, global_elems_z,
 			                    iter.x, iter.y, iter.z);
-			//#ifdef MINIFE_DEBUG
-			//std::cout << "elem ID " << elemIDs[i] << " ("<<iter.x<<","<<iter.y<<","<<iter.z<<")"<<std::endl;
-			//#endif
+
+			dbvprintf("elem ID %d (%d, %d, %d)\n", elemIDs[i], iter.x, iter.y, iter.z);
 		}
 
 		//Now do the actual finite-element assembly loop:
@@ -94,9 +93,11 @@ namespace miniFE
 			sum_into_global_linear_system(elem_data, A, b);
 			TOCK(t_si);
 		}
-		//std::cout << std::endl<<"get-nodes: " << t_gn << std::endl;
-		//std::cout << "compute-elems: " << t_ce << std::endl;
-		//std::cout << "sum-in: " << t_si << std::endl;
+
+		dbvprintf("get-nodes: %lf\n", t_gn);
+		dbvprintf("compute-elems: %lf\n", t_ce);
+		dbvprintf("sum-in: %lf\n", t_si);
+
 	}
 
 }//namespace miniFE

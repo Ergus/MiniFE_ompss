@@ -309,10 +309,9 @@ namespace miniFE
 		for (size_t i = 0; i < A.nrows; ++i) {
 			const int row = A.rows[i];
 
-			const bool found = std::binary_search(bc_rows_array,
-			                                      &bc_rows_array[bc_rows_size],
-			                                      row);
-			if (found)
+			if (std::binary_search(bc_rows_array,
+			                       &bc_rows_array[bc_rows_size],
+			                       row))
 				continue;
 
 			size_t row_length = 0;
@@ -322,12 +321,9 @@ namespace miniFE
 
 			double sum = 0.0;
 			for(size_t j = 0; j < row_length; ++j) {
-				const bool found =
-					std::binary_search(bc_rows_array,
-					                   &bc_rows_array[bc_rows_size],
-					                   cols[j]);
-
-				if (found) {
+				if (std::binary_search(bc_rows_array,
+				                       &bc_rows_array[bc_rows_size],
+				                       cols[j])) {
 					sum += coefs[j];
 					coefs[j] = 0.0;
 				}

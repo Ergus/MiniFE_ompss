@@ -41,62 +41,163 @@
 namespace miniFE
 {
 
-	class CSRMatrix {
-	private:
-		void init_row(int i,
-		              const int *row_coords_vec,
-		              int global_nx, int global_ny, int global_nz,
-		              int global_nrows,
-		              const simple_mesh_description &mesh)
+	void init_row(const int *row_coords,
+	              const int *global_nodes,
+	              int global_nrows,
+	              const simple_mesh_description *mesh,
+	              int *packed_cols,
+	              double *packed_coefs)
+	{
+		const int ix = row_coords[0];
+		const int iy = row_coords[1];
+		const int iz = row_coords[2];
+		int idx = 0;
+		for(int sz = -1; sz <= 1; ++sz) {
+			for(int sy = -1; sy <= 1; ++sy) {
+				for(int sx = -1; sx <= 1; ++sx) {
+					const int col_id = get_id(global_nodes[0],
+					                          global_nodes[1],
+					                          global_nodes[2],
+					                          ix + sx, iy + sy, iz + sz);
+					if (col_id >= 0 && col_id < global_nrows) {
+						const int col = mesh->map_id_to_row(col_id);
+						assert (col < global_nrows);
+						packed_cols[idx] = col;
+						packed_coefs[idx] = 0;
+						++idx;
+					}
+				}
+			}
+		}
+
+		sort_if_needed(packed_cols, idx);
+	}
+
+	// TODO: make this weak
+	void init_matrix_task(const int *row_coords,
+		const int *global_nodes,
+		int global_nrows,
+		const simple_mesh_description *mesh,
+		const int *row_offsets,
+		int *packed_cols,
+		double *packed_coefs,
+		int nrows, int nnz)
+	{
+		#pragma oss task			\
+			in(row_coords[0; 3 * nrows])	\
+			in(global_nodes[0; 3])		\
+			in(global_nrows[0; nrows])	\
+			in(*mesh)			\
+			in(row_offsets[0; nrows + 1])	\
+			out(packed_cols[0; nnz])		\
+			out(packed_coefs[0; nnz])
 		{
-			const int offset = row_offsets[i];
-			int ix = row_coords_vec[i * 3];
-			int iy = row_coords_vec[i * 3 + 1];
-			int iz = row_coords_vec[i * 3 + 2];
-			int nnz = 0;
-			for(int sz = -1; sz <= 1; ++sz) {
-				for(int sy = -1; sy <= 1; ++sy) {
-					for(int sx = -1; sx <= 1; ++sx) {
-						const int col_id = get_id(global_nx, global_ny, global_nz,
-						                          ix + sx, iy + sy, iz + sz);
-						if (col_id >= 0 && col_id < global_nrows) {
-							const int col = mesh.map_id_to_row(col_id);
-							assert (col < global_nrows);
-							packed_cols[offset + nnz] = col;
-							packed_coefs[offset + nnz] = 0;
-							++nnz;
+			for(int i = 0; i < nrows; ++i) {
+
+				const int offset = row_offsets[i];
+				const int next_offset = row_offsets[i + 1];
+
+				#pragma oss task			\
+					in(row_coords[3 * i; 3])	\
+					in(global_nodes[0; 3]		\
+					in(*mesh)			\
+					in(mesh->ompss2_ids_to_rows[0; mesh->ids_to_rows_size] \
+					out(packed_cols[offset: next_offset]) \
+					out(packed_coefs[offset: next_offset])
+				{
+					init_row(&row_coords[3 * i],
+					         global_nodes,
+					         global_nrows,
+					         mesh,
+					         &packed_cols[offset],
+					         &packed_coefs[offset]);
+				}
+			}
+		}
+	}
+
+
+	void init_offsets_task(int *row_coords,
+	                       int *rows,
+	                       int *row_offsets,
+	                       int *global_nodes,
+	                       const simple_mesh_description *mesh,
+	                       size_t global_nrows,
+	                       size_t nrows,
+	                       size_t &nnz)
+	{
+		#pragma oss task \
+			out(row_coords[0; nrows * 3])			\
+			out(rows[0; nrows])				\
+			out(row_offsets[0; tnrows + 1])			\
+			in(*box)					\
+			in(global_nodes[0; 3])				\
+			in(mesh[0])					\
+			in(mesh_i[0].ompss2_bc_rows_0[0; mesh_i[0].bc_rows_0_size]) \
+			in(mesh_i[0].ompss2_bc_rows_1[0; mesh_i[0].bc_rows_1_size]) \
+			in(mesh_i[0].ompss2_ids_to_rows[0; mesh_i[0].ids_to_rows_size]) \
+			in(tnrows)					\
+			out(nnz)
+
+		{
+			const Box &box = mesh->extended_box;
+			size_t tnnz = 0;
+			size_t roffset = 0;
+
+			for(int iz = box[2][0]; iz < box[2][1]; ++iz) {
+				for(int iy = box[1][0]; iy < box[1][1]; ++iy) {
+					for(int ix = box[0][0]; ix < box[0][1]; ++ix) {
+						const int row_id =
+							get_id(global_nodes[0],
+							       global_nodes[1],
+							       global_nodes[2],
+							       ix, iy, iz);
+
+						rows[roffset] = mesh->map_id_to_row(row_id);
+						row_coords[roffset * 3] = ix;
+						row_coords[roffset * 3 + 1] = iy;
+						row_coords[roffset * 3 + 2] = iz;
+						row_offsets[roffset++] = tnnz;
+
+						for(int sz = -1; sz <= 1; ++sz) {
+							for(int sy = -1; sy <= 1; ++sy) {
+								for(int sx = -1; sx <= 1; ++sx) {
+									const size_t col_id =
+										get_id(global_nodes[0],
+										       global_nodes[1],
+										       global_nodes[2],
+										       ix + sx,
+										       iy + sy,
+										       iz + sz);
+									if (col_id >= 0 &&
+									    col_id < global_nrows)
+										++tnnz;
+								}
+							}
 						}
 					}
 				}
 			}
+			row_offsets[nrows] = tnnz;
+			nnz = tnnz;
+			assert(roffset == nrows);
 
-			sort_if_needed(&packed_cols[offset], nnz);
 		}
+		#pragma oss taskwait
+	}
 
-		void init_matrix(const int *row_coords_vec,
-		                 int global_nx, int global_ny, int global_nz,
-		                 int global_nrows,
-		                 const simple_mesh_description &mesh)
-		{
-			for (size_t i = 0; i < nrows; ++i)
-				init_row(i, row_coords_vec,
-				         global_nx, global_ny, global_nz,
-				         global_nrows, mesh);
-		}
-
+	class CSRMatrix {
 	public:
 		bool has_local_indices;
 		int *rows;
 		int *row_offsets;
-		int *row_offsets_external;
-		size_t global_nrows, nrows;
+		//int *row_offsets_external;
+		size_t global_nrows, nrows, nnz;
 
-		int nnz;
 		int *packed_cols;
 		double *packed_coefs;
 
 		int num_cols;
-		int num_nonzeros;
 
 		int nrecv_neighbors;
 		int nexternals;
@@ -114,10 +215,10 @@ namespace miniFE
 
 		CSRMatrix()
 			: has_local_indices(false),
-			  rows(), row_offsets(nullptr), row_offsets_external(),
+			  rows(), row_offsets(nullptr), //row_offsets_external(),
 			  global_nrows(-1), nrows(-1),
 			  nnz(0), packed_cols(nullptr), packed_coefs(nullptr),
-			  num_cols(0), num_nonzeros(0),
+			  num_cols(0),
 
 			  nrecv_neighbors(0), nexternals(0), recv_neighbors(nullptr),
 			  recv_ptr(nullptr), recv_length(nullptr), external_index(nullptr),
@@ -133,7 +234,7 @@ namespace miniFE
 			// generate_matrix_structure
 			rrd_free(rows, nrows * sizeof(int));
 			rrd_free(row_offsets, (nrows + 1) * sizeof(int));
-			rrd_free(row_offsets_external, (nrows + 1) * sizeof(int));
+			//rrd_free(row_offsets_external, (nrows + 1) * sizeof(int));
 			rrd_free(packed_cols, nnz * sizeof(int));
 			rrd_free(packed_coefs, nnz * sizeof(double));
 
@@ -174,7 +275,7 @@ namespace miniFE
 			ptrdiff_t local_row = -1;
 			//first see if we can get the local-row index using fast direct lookup:
 			if (nrows > 0) {
-				ptrdiff_t idx = row - rows[0];
+				int idx = row - rows[0];
 				if (idx < nrows && rows[idx] == row)
 					local_row = idx;
 			}
@@ -199,102 +300,51 @@ namespace miniFE
 			coefs = &packed_coefs[offset];
 		}
 
-		void generate_matrix_structure(const simple_mesh_description &mesh)
+		void generate_matrix_structure(const simple_mesh_description *mesh)
 		{
-			try {
 
-				const int global_nodes_x = mesh.global_box[0][1] + 1;
-				const int global_nodes_y = mesh.global_box[1][1] + 1;
-				const int global_nodes_z = mesh.global_box[2][1] + 1;
+			int global_nodes[3] = {
+				mesh->global_box[0][1] + 1,
+				mesh->global_box[1][1] + 1,
+				mesh->global_box[2][1] + 1 };
 
-				Box box(mesh.local_box);
+			nrows = mesh->extended_box.get_num_ids();
 
-				//num-owned-nodes in each dimension is num-elems+1
-				//only if num-elems > 0 in that dimension *and*
-				//we are at the high end of the global range in that dimension:
-				if (box[0][1] > box[0][0] && box[0][1] == mesh.global_box[0][1])
-					++box[0][1];
-				if (box[1][1] > box[1][0] && box[1][1] == mesh.global_box[1][1])
-					++box[1][1];
-				if (box[2][1] > box[2][0] && box[2][1] == mesh.global_box[2][1])
-					++box[2][1];
+			//num-owned-nodes in each dimension is num-elems+1
+			//only if num-elems > 0 in that dimension *and*
+			//we are at the high end of the global range in that dimension:
+			global_nrows = global_nodes[0] * global_nodes[1] * global_nodes[2];
 
-				global_nrows = global_nodes_x * global_nodes_y * global_nodes_z;
-				nrows = box.get_num_ids();
+			rows = (int *) rrd_malloc(nrows * sizeof(int));
+			row_offsets = (int *) rrd_malloc((nrows + 1) * sizeof(int));
 
-				try {
-					// This substituted the reserve function
-					rows = (int *) rrd_malloc(nrows * sizeof(int));
-					row_offsets = (int *) rrd_malloc((nrows + 1) * sizeof(int));
-					row_offsets_external = (int *) rrd_malloc((nrows + 1) * sizeof(int));
-				} catch(std::exception& exc) {
-					std::ostringstream osstr;
-					osstr << "One of rows.resize, row_offsets.resize, "
-					      << "packed_cols.reserve or packed_coefs.reserve: nrows = "
-					      << nrows <<": ";
-					osstr << exc.what();
-					std::string str1 = osstr.str();
-					throw std::runtime_error(str1);
-				}
+			int *row_coords = (int *) rrl_malloc(nrows * 3 * sizeof(int));
 
-				int *row_coords = (int *) rrl_malloc(nrows * 3 * sizeof(int));
+			init_offsets_task(row_coords,
+			                  rows,
+			                  row_offsets,
+			                  global_nodes,
+			                  mesh,
+			                  global_nrows,
+			                  nrows,
+			                  nnz);
 
-				size_t roffset = 0;
-				nnz = 0;
+			packed_cols = (int *) rrd_malloc(nnz * sizeof(int));
+			packed_coefs = (double *) rrd_malloc(nnz * sizeof(double));
 
-				// TODO: Task here to touch the array row_offsets
-				// out row_coords[0;]
-				{
-					for(int iz = box[2][0]; iz < box[2][1]; ++iz) {
-						for(int iy = box[1][0]; iy < box[1][1]; ++iy) {
-							for(int ix = box[0][0]; ix < box[0][1]; ++ix) {
-								int row_id =
-									get_id(global_nodes_x, global_nodes_y, global_nodes_z,
-									       ix, iy, iz);
+			 init_matrix_task(row_coords,
+			                 global_nodes,
+			                 global_nrows,
+			                 mesh,
+			                 row_offsets,
+			                 packed_cols,
+			                 packed_coefs,
+			                 nrows,
+			                 nnz);
 
-								rows[roffset] = mesh.map_id_to_row(row_id);
-								row_coords[roffset * 3] = ix;
-								row_coords[roffset * 3 + 1] = iy;
-								row_coords[roffset * 3 + 2] = iz;
-								row_offsets[roffset++] = nnz;
+			// TODO: Taskwait here
+			rrl_free(row_coords, nrows * 3 * sizeof(int));
 
-								for(int sz = -1; sz <= 1; ++sz) {
-									for(int sy = -1; sy <= 1; ++sy) {
-										for(int sx = -1; sx <= 1; ++sx) {
-											const size_t col_id = get_id(global_nodes_x,
-											                             global_nodes_y,
-											                             global_nodes_z,
-											                             ix + sx, iy + sy, iz + sz);
-											if (col_id >= 0 && col_id < global_nrows)
-												++nnz;
-										}
-									}
-								}
-							}
-						}
-					}
-					row_offsets[nrows] = nnz;
-				}
-
-				assert(roffset == nrows);
-				num_nonzeros = nnz;
-
-				packed_cols = (int *) rrd_malloc(nnz * sizeof(int));
-				packed_coefs = (double *) rrd_malloc(nnz * sizeof(double));
-
-				// TODO: Task Here
-				init_matrix(row_coords,
-				            global_nodes_x, global_nodes_y, global_nodes_z,
-				            global_nrows, mesh);
-
-				// TODO: Taskwait here
-				rrl_free(row_coords, nrows * 3 * sizeof(int));
-
-			} catch(...) {
-				std::cout << " threw an exception in generate_matrix_structure,"
-				          << " probably due to running out of memory."
-				          << std::endl;
-			}
 		}
 
 
@@ -320,7 +370,7 @@ namespace miniFE
 			std::ofstream ofs(full_name.c_str());
 
 			if (id == 0)
-				ofs << nrows << " " << num_nonzeros << std::endl;
+				ofs << nrows << " " << nnz << std::endl;
 
 			for (size_t i = 0; i < nrows; ++i) {
 				size_t row_len = 0;

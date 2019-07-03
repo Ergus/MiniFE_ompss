@@ -106,6 +106,7 @@ namespace miniFE
 		const int global_ny = global_box[1][1];
 		const int global_nz = global_box[2][1];
 
+		// TODO: imbalance is implemented but not tested yet
 		// if (params.load_imbalance > 0)
 		// 	add_imbalance<GlobalOrdinal>(global_box, local_boxes, numboxes,
 		// 	                             params.load_imbalance, ydoc);
@@ -121,7 +122,7 @@ namespace miniFE
 		timer_type t_start = mytimer();
 		timer_type t0 = mytimer();
 
-		// Tasks here
+		// Tasks here (is not really needed, just to paralelize)
 		Box local_node_box_array[numboxes];
 		for (size_t i = 0; i < numboxes; ++i) {
 			local_node_box_array[i] = local_boxes_array[i];
@@ -133,11 +134,10 @@ namespace miniFE
 			}
 		}
 
-		
 		simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
 
 		for (size_t i = 0; i < numboxes; ++i) {
-			#pragma oss task in(global_box) \
+			#pragma oss task in(global_box)			\
 				in(local_boxes_array[0; numboxes])	\
 				in(local_node_box_array[0; numboxes])	\
 				inout (mesh_array[i])
@@ -147,14 +147,13 @@ namespace miniFE
 			}
 		}
 
-		// Taskwait here
+		// TODO: Taskwait here
 		timer_type mesh_fill = mytimer() - t0;
 		timer_type t_total = mytimer() - t_start;
 
 		std::cout << mesh_fill << "s, total time: " << t_total << std::endl;
 
 		//next we will generate the matrix structure.
-
 
 		//Declare matrix object array
 		CSRMatrix *A_array = new CSRMatrix[numboxes];
@@ -163,10 +162,20 @@ namespace miniFE
 			timer_type gen_structure = mytimer();
 
 			for (size_t i = 0; i < numboxes; ++i) {
-				// TODO: task here
-				A_array[i].generate_matrix_structure(mesh_array[i]);   // TODO: Tasks here
+				CSRMatrix *A_i = &A_array[i];
+				simple_mesh_description *mesh_i = &mesh_array[i];
+
+				// TODO: the bc arrays dependencies are probably not needed. Test later.
+				#pragma oss task			\
+					in(mesh_i[0])			\
+					in(mesh_i[0].ompss2_bc_rows_0[0; mesh_i[0].bc_rows_0_size]) \
+					in(mesh_i[0].ompss2_bc_rows_1[0; mesh_i[0].bc_rows_1_size]) \
+					in(mesh_i[0].ompss2_ids_to_rows[0; mesh_i[0].ids_to_rows_size]) \
+					inout(A_i[0])
+				{
+					A_i[0].generate_matrix_structure(mesh_i);   // TODO: Tasks here
+				}
 			}
-			// taskwait here
 
 			REGISTER_ELAPSED_TIME(gen_structure, t_total);
 
@@ -174,17 +183,23 @@ namespace miniFE
 			ydoc.get("Matrix structure generation")->add("Mat-struc-gen Time", gen_structure);
 		}
 
+		// TODO: Taskwait here
+
 		// Declare vector objects array
 		Vector *b_array = new Vector[numboxes];
 		Vector *x_array = new Vector[numboxes];
 		// TODO: Task Here
 		for (size_t i = 0; i < numboxes; ++i) {
-			const int local_nrows_i = A_array[i].nrows;
-			const int first_row_i = local_nrows_i > 0 ? A_array[i].rows[0] : -1;
 
-			//TODO: Task here
-			b_array[i].init(first_row_i, local_nrows_i);
-			x_array[i].init(first_row_i, local_nrows_i);
+			#pragma oss task inout(b_array[i]) inout (x_array[i]) \
+				in(A_array[i]) in(A_array[i].rows[0])
+			{
+				const int local_nrows_i = A_array[i].nrows;
+				const int first_row_i = local_nrows_i > 0 ? A_array[i].rows[0] : -1;
+
+				b_array[i].init(first_row_i, local_nrows_i);
+				x_array[i].init(first_row_i, local_nrows_i);
+			}
 		}
 
 		//Assemble finite-element sub-matrices and sub-vectors into the global linear system:
@@ -192,15 +207,34 @@ namespace miniFE
 			std::cout << "assembling FE data..." << std::endl;
 			timer_type fe_assembly = mytimer();
 
-			for (size_t i = 0; i < numboxes; ++i)
-				assemble_FE_data(mesh_array[i], A_array[i], b_array[i]);
+			for (size_t i = 0; i < numboxes; ++i) {
+				simple_mesh_description *mesh_i = &mesh_array[i];
+				CSRMatrix *A_i = &A_array[i];
+				Vector *b_i = &b_array[i];
+
+				// TODO: A dependencies may be reduced, needs some check.
+				#pragma oss task			\
+					in(mesh_i[0])			\
+					in(mesh_i[0].ompss2_bc_rows_0[0; mesh_i[0].bc_rows_0_size]) \
+					in(mesh_i[0].ompss2_bc_rows_1[0; mesh_i[0].bc_rows_1_size]) \
+					in(mesh_i[0].ompss2_ids_to_rows[0; mesh_i[0].ids_to_rows_size]) \
+					inout(A_i[0])			\
+					inout(A_i[0].rows[0; A_i[0].nrows]) \
+					inout(A_i[0].rows_offsets[0; A_i[0].nrows + 1]) \
+					inout(A_i[0].packed_cols[0; A_i[0].nnz]) \
+					inout(A_i[0].packed_coefs[0; A_i[0].nnz]) \
+					inout(b_i[0])			\
+					inout(b_i[0].coefs[0; b_i[0].local_size])
+				{
+					assemble_FE_data(mesh_i[0], A_i[0], b_i[0]);
+				}
+			}
 
 			REGISTER_ELAPSED_TIME(fe_assembly, t_total);
 
 			ydoc.add("FE assembly", "");
 			ydoc.get("FE assembly")->add("FE assembly Time",fe_assembly);
 		}
-
 
 
 		#ifdef MINIFE_DEBUG
@@ -301,7 +335,7 @@ namespace miniFE
 		std::cout << "Final Resid Norm: " << rnorm << std::endl;
 
 		if (params.verify_solution > 0) {
-			#ifdef MINIFE_DEBUG
+			#ifndef NDEBUG
 			bool verify_whole_domain = true;
 			std::cout << "verifying solution..." << std::endl;
 			#else
