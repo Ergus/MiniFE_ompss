@@ -66,17 +66,18 @@ namespace miniFE {
 
 		// Bound information
 		for (size_t id = 0; id < numboxes; ++id) {
-			// Tasks here all out
-			// in A_array[0, numboxes]
-			// out nrows_array[0; numboxes]
-			// out start_row_array[0; numboxes]
-			// out stop_row_array[0; numboxes]
+			#pragma oss task		\
+				in(A_array[id])		\
+				in(A_array[id].rows[A_array[id].nrows - 1]) \
+				out(start_row_array[id])		\
+				stop_row_array[id]			\
+				nrows_array[id]
 			{
 				const size_t local_nrow = A_array[id].nrows;
 				nrows_array[id] = local_nrow;
 
 				if (local_nrow > 0) {
-					start_row_array[id] = A_array[id].rows[0];
+					start_row_array[id] = A_array[id].first_row;
 					stop_row_array[id] = A_array[id].rows[local_nrow - 1];
 				} else {
 					start_row_array[id] = -1;

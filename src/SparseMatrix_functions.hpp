@@ -275,12 +275,12 @@ namespace miniFE
 
 	//------------------------------------------------------------------------
 	template<typename MatrixType>
-	void zero_row_and_put_1_on_diagonal(MatrixType& A, const int row)
+	void zero_row_and_put_1_on_diagonal(MatrixType *A, const int row)
 	{
 		size_t row_len = 0;
 		int* cols = NULL;
 		double *coefs = NULL;
-		A.get_row_pointers(row, row_len, cols, coefs);
+		A->get_row_pointers(row, row_len, cols, coefs);
 
 		for(size_t i = 0; i < row_len; ++i)
 			coefs[i] = (cols[i] == row);
@@ -289,25 +289,25 @@ namespace miniFE
 	//------------------------------------------------------------------------
 	template<typename MatrixType>
 	void impose_dirichlet(double prescribed_value,
-	                      MatrixType &A, Vector &b,
+	                      MatrixType *A, Vector *b,
 	                      int global_nx, int global_ny, int global_nz,
 	                      const int *bc_rows_array, size_t bc_rows_size)
 	{
-		int first_local_row = A.nrows > 0 ? A.rows[0] : 0;
-		int last_local_row  = A.nrows > 0 ? A.rows[A.nrows - 1] : -1;
+		const int first_local_row = A->nrows > 0 ? A->rows[0] : 0;
+		const int last_local_row  = A->nrows > 0 ? A->rows[A->nrows - 1] : -1;
 
 		for (size_t i = 0; i < bc_rows_size; ++i) {
 			const int row = bc_rows_array[i];
 
 			if (row >= first_local_row && row <= last_local_row) {
 				const size_t local_row = row - first_local_row;
-				b.coefs[local_row] = prescribed_value;
+				b->coefs[local_row] = prescribed_value;
 				zero_row_and_put_1_on_diagonal(A, row);
 			}
 		}
 
-		for (size_t i = 0; i < A.nrows; ++i) {
-			const int row = A.rows[i];
+		for (size_t i = 0; i < A->nrows; ++i) {
+			const int row = A->rows[i];
 
 			if (std::binary_search(bc_rows_array,
 			                       &bc_rows_array[bc_rows_size],
@@ -317,7 +317,7 @@ namespace miniFE
 			size_t row_length = 0;
 			int *cols = NULL;
 			double *coefs = NULL;
-			A.get_row_pointers(row, row_length, cols, coefs);
+			A->get_row_pointers(row, row_length, cols, coefs);
 
 			double sum = 0.0;
 			for(size_t j = 0; j < row_length; ++j) {
@@ -329,7 +329,7 @@ namespace miniFE
 				}
 			}
 
-			b.coefs[i] -= sum * prescribed_value;
+			b->coefs[i] -= sum * prescribed_value;
 		}
 	}
 

@@ -41,7 +41,7 @@
 namespace miniFE
 {
 
-	void init_row(const int *row_coords,
+	void init_row_task(const int *row_coords,
 	              const int *global_nodes,
 	              int global_nrows,
 	              const simple_mesh_description *mesh,
@@ -73,7 +73,7 @@ namespace miniFE
 		sort_if_needed(packed_cols, idx);
 	}
 
-	// TODO: make this weak
+	// TODO: make this weak when all works
 	void init_matrix_task(const int *row_coords,
 		const int *global_nodes,
 		int global_nrows,
@@ -105,12 +105,12 @@ namespace miniFE
 					out(packed_cols[offset: next_offset]) \
 					out(packed_coefs[offset: next_offset])
 				{
-					init_row(&row_coords[3 * i],
-					         global_nodes,
-					         global_nrows,
-					         mesh,
-					         &packed_cols[offset],
-					         &packed_coefs[offset]);
+					init_row_task(&row_coords[3 * i],
+					              global_nodes,
+					              global_nrows,
+					              mesh,
+					              &packed_cols[offset],
+					              &packed_coefs[offset]);
 				}
 			}
 		}
@@ -124,7 +124,8 @@ namespace miniFE
 	                       const simple_mesh_description *mesh,
 	                       size_t global_nrows,
 	                       size_t nrows,
-	                       size_t &nnz)
+	                       size_t &nnz,
+	                       int &first_row)
 	{
 		#pragma oss task \
 			out(row_coords[0; nrows * 3])			\
@@ -137,7 +138,8 @@ namespace miniFE
 			in(mesh_i[0].ompss2_bc_rows_1[0; mesh_i[0].bc_rows_1_size]) \
 			in(mesh_i[0].ompss2_ids_to_rows[0; mesh_i[0].ids_to_rows_size]) \
 			in(tnrows)					\
-			out(nnz)
+			out(nnz)					\
+			out(first_row)
 
 		{
 			const Box &box = mesh->extended_box;
@@ -180,6 +182,7 @@ namespace miniFE
 			}
 			row_offsets[nrows] = tnnz;
 			nnz = tnnz;
+			first_row = rows[0];
 			assert(roffset == nrows);
 
 		}
@@ -197,6 +200,7 @@ namespace miniFE
 		int *packed_cols;
 		double *packed_coefs;
 
+		int first_row;
 		int num_cols;
 
 		int nrecv_neighbors;
@@ -218,7 +222,7 @@ namespace miniFE
 			  rows(), row_offsets(nullptr), //row_offsets_external(),
 			  global_nrows(-1), nrows(-1),
 			  nnz(0), packed_cols(nullptr), packed_coefs(nullptr),
-			  num_cols(0),
+			  first_row(-1), num_cols(0),
 
 			  nrecv_neighbors(0), nexternals(0), recv_neighbors(nullptr),
 			  recv_ptr(nullptr), recv_length(nullptr), external_index(nullptr),
@@ -327,12 +331,13 @@ namespace miniFE
 			                  mesh,
 			                  global_nrows,
 			                  nrows,
-			                  nnz);
+			                  nnz,
+			                  first_row);
 
 			packed_cols = (int *) rrd_malloc(nnz * sizeof(int));
 			packed_coefs = (double *) rrd_malloc(nnz * sizeof(double));
 
-			 init_matrix_task(row_coords,
+			init_matrix_task(row_coords,
 			                 global_nodes,
 			                 global_nrows,
 			                 mesh,

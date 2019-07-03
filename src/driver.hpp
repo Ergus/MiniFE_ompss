@@ -165,17 +165,16 @@ namespace miniFE
 				CSRMatrix *A_i = &A_array[i];
 				simple_mesh_description *mesh_i = &mesh_array[i];
 
-				// TODO: the bc arrays dependencies are probably not needed. Test later.
+				// TODO: the bc arrays dependencies are probably not needed.
 				#pragma oss task			\
-					in(mesh_i[0])			\
-					in(mesh_i[0].ompss2_bc_rows_0[0; mesh_i[0].bc_rows_0_size]) \
-					in(mesh_i[0].ompss2_bc_rows_1[0; mesh_i[0].bc_rows_1_size]) \
-					in(mesh_i[0].ompss2_ids_to_rows[0; mesh_i[0].ids_to_rows_size]) \
-					inout(A_i[0])
+					in(*mesh_i)			\
+					in(mesh_i->ompss2_ids_to_rows[0; mesh_i->ids_to_rows_size]) \
+					inout(*A_i)
 				{
-					A_i[0].generate_matrix_structure(mesh_i);   // TODO: Tasks here
+					A_i->generate_matrix_structure(mesh_i);   // TODO: Tasks here
 				}
 			}
+			
 
 			REGISTER_ELAPSED_TIME(gen_structure, t_total);
 
@@ -183,7 +182,7 @@ namespace miniFE
 			ydoc.get("Matrix structure generation")->add("Mat-struc-gen Time", gen_structure);
 		}
 
-		// TODO: Taskwait here
+		#pragma oss taskwait
 
 		// Declare vector objects array
 		Vector *b_array = new Vector[numboxes];
@@ -191,14 +190,13 @@ namespace miniFE
 		// TODO: Task Here
 		for (size_t i = 0; i < numboxes; ++i) {
 
-			#pragma oss task inout(b_array[i]) inout (x_array[i]) \
-				in(A_array[i]) in(A_array[i].rows[0])
+			#pragma oss task		\
+				inout(b_array[i])	\
+				inout (x_array[i])	\
+				in(A_array[i])
 			{
-				const int local_nrows_i = A_array[i].nrows;
-				const int first_row_i = local_nrows_i > 0 ? A_array[i].rows[0] : -1;
-
-				b_array[i].init(first_row_i, local_nrows_i);
-				x_array[i].init(first_row_i, local_nrows_i);
+				b_array[i].init(A_array[i].first_row, A_array[i].nrows);
+				x_array[i].init(A_array[i].first_row, A_array[i].nrows);
 			}
 		}
 
@@ -214,17 +212,17 @@ namespace miniFE
 
 				// TODO: A dependencies may be reduced, needs some check.
 				#pragma oss task			\
-					in(mesh_i[0])			\
-					in(mesh_i[0].ompss2_bc_rows_0[0; mesh_i[0].bc_rows_0_size]) \
-					in(mesh_i[0].ompss2_bc_rows_1[0; mesh_i[0].bc_rows_1_size]) \
-					in(mesh_i[0].ompss2_ids_to_rows[0; mesh_i[0].ids_to_rows_size]) \
-					inout(A_i[0])			\
-					inout(A_i[0].rows[0; A_i[0].nrows]) \
-					inout(A_i[0].rows_offsets[0; A_i[0].nrows + 1]) \
-					inout(A_i[0].packed_cols[0; A_i[0].nnz]) \
-					inout(A_i[0].packed_coefs[0; A_i[0].nnz]) \
-					inout(b_i[0])			\
-					inout(b_i[0].coefs[0; b_i[0].local_size])
+					in(*mesh_i)			\
+					in(mesh_i->ompss2_bc_rows_0[0; mesh_i->bc_rows_0_size]) \
+					in(mesh_i->ompss2_bc_rows_1[0; mesh_i->bc_rows_1_size]) \
+					in(mesh_i->ompss2_ids_to_rows[0; mesh_i->ids_to_rows_size]) \
+					inout(*A_i)			\
+					inout(A_i->rows[0; A_i->nrows]) \
+					inout(A_i->rows_offsets[0; A_i->nrows + 1]) \
+					inout(A_i->packed_cols[0; A_i->nnz]) \
+					inout(A_i->packed_coefs[0; A_i->nnz]) \
+					inout(*b_i)			\
+					inout(b_i->coefs[0; b_i->local_size])
 				{
 					assemble_FE_data(mesh_i[0], A_i[0], b_i[0]);
 				}
@@ -255,20 +253,33 @@ namespace miniFE
 
 			// This dependencies are inout and individual per impose_dirichlet.
 			for (size_t i = 0; i < numboxes; ++i) {
+				simple_mesh_description *mesh_i = &mesh_array[i];
+				CSRMatrix *A_i = &A_array[i];
+				Vector *b_i = &b_array[i];
 
-				// TODO: Tasks here
-				// inout A_array[i] (full) b_array[i] (full)
-				// in mesh_array[i]
+				// TODO: rows_offsets shouldn't be needed
+				// This routine repeats zero_row_and_put_1_on_diagonal
+				// This shouldn't be needed
+				#pragma oss task			\
+					in(mesh_i->ompss2_bc_rows_0[0; mesh_i->bc_rows_0_size]) \
+					in(mesh_i->ompss2_bc_rows_1[0; mesh_i->bc_rows_1_size]) \
+					in(*A_i)			\
+					in(A_i->rows[0; A_i->nrows])	\
+					inout(A_i->rows_offsets[0; A_i->nrows + 1]) \
+					in(A_i->packed_cols[0; A_i->nnz]) \
+					inout(A_i->packed_coefs[0; A_i->nnz]) \
+					inout(*b_i)			\
+					inout(b_i->coefs[0; b_i->local_size])
 				{
-					impose_dirichlet(0.0, A_array[i], b_array[i],
+					impose_dirichlet(0.0, A_i, b_i,
 					                 global_nx + 1, global_ny + 1, global_nz + 1,
-					                 mesh_array[i].ompss2_bc_rows_0,
-					                 mesh_array[i].bc_rows_0_size);
+					                 mesh_i->ompss2_bc_rows_0,
+					                 mesh_i->bc_rows_0_size);
 
-					impose_dirichlet(1.0, A_array[i], b_array[i],
+					impose_dirichlet(1.0, A_i, b_i,
 					                 global_nx + 1, global_ny + 1, global_nz + 1,
-					                 mesh_array[i].ompss2_bc_rows_1,
-					                 mesh_array[i].bc_rows_1_size);
+					                 mesh_i->ompss2_bc_rows_1,
+					                 mesh_i->bc_rows_1_size);
 				}
 			}
 
