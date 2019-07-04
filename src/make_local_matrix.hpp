@@ -252,11 +252,10 @@ namespace miniFE {
 	}
 
 	#pragma oss task						\
-		in(A)							\
-		out(A->send_neighbors[0; nsend_list_local])		\
-		out(A->send_length[0; nsend_list_local])		\
-		out(A->elements_to_send[0; nsend_length_local])		\
 		in(A_array[0; numboxes])				\
+		out(A_array[id]->send_neighbors[0; nsend_list_local])	\
+		out(A_array[id]->send_length[0; nsend_list_local])	\
+		out(A_array[id]->elements_to_send[0; nsend_length_local]) \
 		in(nrows_array[id])					\
 		in(start_row_array[id])					\
 		in(stop_row_array[id])					\
@@ -290,13 +289,11 @@ namespace miniFE {
 		memcpy(A->send_neighbors, send_list_local, A->nsend_neighbors);
 		memcpy(A->send_length, send_length_local, A->nsend_neighbors);
 
-		int *elements_to_send_local = (int *) rrl_malloc(A->nelements_to_send * sizeof(int));
-
 		// Fill the elements_to_send array
 		const int start_row = start_row_array[id];
 		const int stop_row = stop_row_array[id];
 		int start_local = 0;
-		for (size_t i = 0; i < A->nsend_neighbors; ++i) { // Iterate over neighbors list
+		for (int i = 0; i < A->nsend_neighbors; ++i) { // Iterate over neighbors list
 			const size_t send_neighbor_id = send_list_local[i]; // neighbor
 
 			assert(send_neighbor_id < numboxes);
@@ -309,46 +306,52 @@ namespace miniFE {
 			const int *recv_list_id =
 				&recv_list_global[send_neighbor_id * numboxes];
 
+			// remote lengths
 			const int *recv_length_id =
 				&recv_length_global[send_neighbor_id * numboxes];
 
-			int start_remote = 0;
+			// Where the neighbor has the ids I will send to it
+			int *ptr_remote = A_array[send_neighbor_id].external_index;
+
 			for (int j = 0; j < nrecv_list_id; ++j) {
 				if ((size_t)recv_list_id[j] == id) {  // If I am the sender
+
 					// Where I will put the elements for this neighbors
-					int *ptr_local = &(elements_to_send_local[start_local]);
+					int *ptr_local = &(A->elements_to_send[start_local]);
 
-					// TODO: Task here
-					// inform the remote about my pointer
-					A_array[send_neighbor_id].recv_ptr[j] =
-						&A->send_buffer[start_local];
-
-					// Where the neighbor has the ids I will send to it
-					const int *ptr_remote =
-						&(A_array[send_neighbor_id].external_index[start_remote]);
 					// How many elements I will send to it
 					const int nsend_to_id = recv_length_id[j];
 
-					for (int k = 0; k < nsend_to_id; ++k) {
-						const int id_to_send_global = ptr_remote[k];
+					// TODO: errors come from  HERE.
+					#pragma oss task		\
+						in(A)			\
+						in(ptr_remote[0; nsend_to_id]) \
+						out(A_array[send_neighbor_id].recv_ptr[j]) \
+						out(ptr_local[0; nsend_to_id])
+					{
+						// inform the remote about my pointer
+						A_array[send_neighbor_id].recv_ptr[j] =
+							&A->send_buffer[start_local];
 
-						// Assert I have this element
-						assert(start_row <= id_to_send_global);
-						assert(id_to_send_global <= stop_row);
+						for (int k = 0; k < nsend_to_id; ++k) {
+							const int id_to_send_global = ptr_remote[k];
 
-						ptr_local[k] = id_to_send_global - start_row;
+							// Assert I have this element
+							assert(start_row <= id_to_send_global);
+							assert(id_to_send_global <= stop_row);
+
+							ptr_local[k] = id_to_send_global - start_row;
+						}
+
 					}
+
 					start_local += nsend_to_id;
 				}
-				start_remote += recv_length_id[j];
+				ptr_remote += recv_length_id[j];
 			}
 		}
 
 		// The elements_id is filled and moved to relative indices.
-		copy_local_to_global_task(A->elements_to_send, elements_to_send_local, A->nelements_to_send);
-
-		rrl_free(elements_to_send_local, A->nelements_to_send * sizeof(int));
-
 		A->num_cols = nrows_array[id] + nrecv_length_global[id];
 		A->has_local_indices = true;
 	}
@@ -446,6 +449,7 @@ namespace miniFE {
 		}
 
 		#pragma oss taskwait
+
 		for (size_t id = 0; id < numboxes; ++id) {
 
 			int *send_list_local = &send_list_global[id * numboxes];
