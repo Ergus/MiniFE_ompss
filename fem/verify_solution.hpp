@@ -85,7 +85,7 @@ namespace miniFE
 		const int global_nodes_x = (*global_box)[0][1]+1;
 		const int global_nodes_y = (*global_box)[1][1]+1;
 		const int global_nodes_z = (*global_box)[2][1]+1;
-		err_info max_error[numboxes];
+		err_info *max_error = (err_info *) rrl_malloc(numboxes * sizeof(err_info));
 
 		for (int id = 0; id < numboxes; ++id) {
 
@@ -171,10 +171,13 @@ namespace miniFE
 			} // task
 		} // for loop
 
+
 		#pragma oss taskwait
 		const err_info &global_max_error = get_max_error(max_error, numboxes);
 
 		std::cout << global_max_error << std::endl;
+
+		rrl_free(max_error, numboxes * sizeof(err_info));
 
 		return (global_max_error.err > tolerance);
 	}

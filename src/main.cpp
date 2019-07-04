@@ -115,6 +115,7 @@ int main(int argc, char** argv)
 	doc.add("Total Program Time", total_time);
 	doc.generateYAML();
 
+	#pragma oss taskwait
 	delete [] local_boxes;
 
 	return 0;

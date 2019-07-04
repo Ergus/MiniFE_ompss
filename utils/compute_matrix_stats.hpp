@@ -48,18 +48,17 @@ namespace miniFE {
 	{
 
 		int min_nrows = 0, max_nrows = 0, global_nrows = 0;
-		int local_nrows[numboxes];
+		int *local_nrows = (int *) rrl_malloc(numboxes * sizeof(int));
 
 		double dmin_nnz = 0, dmax_nnz = 0, dglobal_nnz = 0;
-		double dlocal_nnz[numboxes];
+		double *dlocal_nnz = (double *) rrl_malloc(numboxes * sizeof(double));
 
 		int min_box = 0, max_box = 0;
 
 		for (int i = 0; i < numboxes; ++i) {
 
 			#pragma oss task		\
-				in(A_array[i].nnz)	\
-				in(A_array[i].nrows)	\
+				in(A_array[i])		\
 				out(dlocal_nnz[i])	\
 				out(local_nrows[i])
 			{
@@ -112,6 +111,10 @@ namespace miniFE {
 		ydoc.get("Matrix attributes")->add("NNZ per proc MIN", min_nnz);
 		ydoc.get("Matrix attributes")->add("NNZ per proc MAX", max_nnz);
 		ydoc.get("Matrix attributes")->add("NNZ per proc AVG", avg_nnz);
+
+		rrl_free(dlocal_nnz, numboxes * sizeof(double));
+		rrl_free(local_nrows, numboxes * sizeof(int));
+
 	}
 
 }//namespace miniFE

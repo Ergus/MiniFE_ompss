@@ -123,7 +123,7 @@ namespace miniFE
 		timer_type t0 = mytimer();
 
 		// Tasks here (is not really needed, just to paralelize)
-		Box local_node_box_array[numboxes];
+		Box *local_node_box_array = new Box[numboxes];
 		for (size_t i = 0; i < numboxes; ++i) {
 			local_node_box_array[i] = local_boxes_array[i];
 
@@ -451,7 +451,9 @@ namespace miniFE
 		ydoc.get(title)->add("Time per iteration",cg_times[TOTAL]/num_iters);
 		#endif
 
+		#pragma oss taskwait
 		delete [] mesh_array;
+		delete [] local_node_box_array;
 
 		delete [] A_array;
 		delete [] b_array;
