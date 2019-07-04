@@ -33,8 +33,8 @@
 /** \brief Recursively split a box into (up-ip) sub-boxes
  */
 void box_partition( int ip , int up , int axis ,
-                    const Box& box ,
-                    Box* p_box );
+                           const Box& box ,
+                           Box* p_box );
 
 /** \brief  Partition a { [ix,jx) X [iy,jy) X [iz,jz) } box.
  *

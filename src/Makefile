@@ -23,4 +23,8 @@ debug: CXXFLAGS := -O0 -g -std=c++11 -Wall
 verbose: CFLAGS := -O0 -g -std=c99 -Wall -DVERBOSE
 verbose: CXXFLAGS := -O0 -g -std=c++11 -Wall -DVERBOSE
 
+nanos: CXX := mcxx
+nanos: CFLAGS := -O0 -g -std=c99 -Wall --ompss-2
+nanos: CXXFLAGS := -O0 -g -std=c++11 -Wall --ompss-2
+
 include make_targets

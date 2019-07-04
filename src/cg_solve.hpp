@@ -70,7 +70,7 @@ namespace miniFE {
 	                  double &normr,
 	                  timer_type* my_cg_times)
 	{
-		timer_type t0 = 0, tWAXPY[numboxes] = {}, tDOT[numboxes] = {}, tMATVEC[numboxes] = {};
+		timer_type t0 = 0, tWAXPY[numboxes], tDOT[numboxes], tMATVEC[numboxes];
 		timer_type total_time = mytimer();
 
 		Vector *r_array = new Vector[numboxes];
@@ -79,6 +79,9 @@ namespace miniFE {
 
 
 		for (size_t i = 0; i < numboxes; ++i) {
+			tWAXPY[i] = 0.0;
+			tDOT[i] = 0.0;
+			tMATVEC[i] = 0.0;
 			const int first_row_i = b_array[i].startIndex;
 			const int local_nrows_i = A_array[i].nrows;
 			const int Anumcols = A_array[i].num_cols;
@@ -90,7 +93,7 @@ namespace miniFE {
 
 
 		normr = 0;
-		double rtrans[numboxes] = {};
+		double rtrans[numboxes];
 		double oldrtrans;
 		double rtrans_global = 0.0;
 
@@ -100,14 +103,15 @@ namespace miniFE {
 		if (print_freq < 1)
 			print_freq = 1;
 
-		TICK();
+		//TICK();
 		for (size_t i = 0; i < numboxes; ++i) {
+			rtrans[i] = 0;
 			assert(A_array[i].has_local_indices);
 
 			waxpby_task(1.0, &x_array[i], 0.0, &x_array[i], &p_array[i]);
 
 		}
-		TOCK(tWAXPY[0]);
+		//TOCK(tWAXPY[0]);
 
 		// This creates tasks internally
 		exchange_externals_all(A_array, p_array, numboxes);
@@ -115,21 +119,18 @@ namespace miniFE {
 		for (size_t i = 0; i < numboxes; ++i) {
 			// Tasks here
 			// in A_array[i] (full)
-			#pragma in(A_array[i])
-			{
-				TICK();
-				matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
-				TOCK(tMATVEC[i]);
+			TICK();
+			matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
+			TOCK(tMATVEC[i]);
 
-				TICK();
-				waxpby_task(1.0, &b_array[i], -1.0, &Ap_array[i], &r_array[i]);
-				TOCK(tWAXPY[i]);
+			TICK();
+			waxpby_task(1.0, &b_array[i], -1.0, &Ap_array[i], &r_array[i]);
+			TOCK(tWAXPY[i]);
 
 
-				TICK();
-				dot2_task(&r_array[i], &rtrans[i]);
-				TOCK(tDOT[i]);
-			}
+			TICK();
+			dot2_task(&r_array[i], &rtrans[i]);
+			TOCK(tDOT[i]);
 		}
 
 		// TODO: taskwait here
@@ -191,7 +192,6 @@ namespace miniFE {
 				dot_task(&Ap_array[i], &p_array[i], &p_ap_dot[i]);
 				//TOCK(tDOT[i]);
 			}
-
 
 			reduce_sum_task(&p_ap_dot_global, p_ap_dot, numboxes);
 			#pragma oss taskwait

@@ -359,8 +359,7 @@ namespace miniFE {
 
 	// This will be called from driver ================================
 
-	template<typename MatrixType>
-	void make_local_matrix(MatrixType *A_array, size_t numboxes)
+	void make_local_matrix(CSRMatrix *A_array, size_t numboxes)
 	{
 		if (numboxes < 2) {
 			A_array[0].num_cols = A_array[0].nrows;
@@ -392,8 +391,8 @@ namespace miniFE {
 				in(A_array[id])		\
 				in(A_array[id].rows[A_array[id].nrows - 1]) \
 				out(start_row_array[id])		\
-				stop_row_array[id]			\
-				nrows_array[id]
+				out(stop_row_array[id])			\
+				out(nrows_array[id])
 			{
 				const size_t local_nrow = A_array[id].nrows;
 				nrows_array[id] = local_nrow;

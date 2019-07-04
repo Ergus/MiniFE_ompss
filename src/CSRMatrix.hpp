@@ -99,9 +99,9 @@ namespace miniFE
 
 				#pragma oss task			\
 					in(row_coords[3 * i; 3])	\
-					in(global_nodes[0; 3]		\
+					in(global_nodes[0; 3])		\
 					in(*mesh)			\
-					in(mesh->ompss2_ids_to_rows[0; mesh->ids_to_rows_size] \
+					in(mesh->ompss2_ids_to_rows[0; mesh->ids_to_rows_size]) \
 					out(packed_cols[offset: next_offset]) \
 					out(packed_coefs[offset: next_offset])
 				{

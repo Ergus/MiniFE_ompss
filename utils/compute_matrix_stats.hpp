@@ -41,7 +41,7 @@
 
 namespace miniFE {
 
-	#pragma ompss task						\
+	#pragma oss task						\
 		in(A_array[0; numboxes])				\
 		out(global_nnz)
 	void compute_matrix_stats(const CSRMatrix *A_array,

@@ -38,6 +38,8 @@
 #include <Box.hpp>
 #include <BoxPartition.hpp>
 #include <box_utils.hpp>
+
+#include <CSRMatrix.hpp>
 #include <Parameters.hpp>
 #include <utils.hpp>
 #include <driver.hpp>
