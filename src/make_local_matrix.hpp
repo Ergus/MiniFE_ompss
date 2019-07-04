@@ -471,6 +471,7 @@ namespace miniFE {
 			                   nsend_list_global[id]);
 		}
 
+		#pragma oss taskwait
 
 		rrd_free(nrows_array, numboxes * sizeof(size_t));
 		rrd_free(start_row_array, numboxes * sizeof(int));

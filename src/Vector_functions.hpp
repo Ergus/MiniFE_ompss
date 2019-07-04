@@ -31,7 +31,8 @@
 #include <sstream>
 #include <fstream>
 
-#include <Vector.hpp>
+#include "Vector.hpp"
+#include "mytimer.hpp"
 
 namespace miniFE {
 
@@ -47,16 +48,27 @@ namespace miniFE {
 	// w - output vector
 	//
 
-	inline void waxpby(double alpha, const Vector &x,
-	                   double beta, const Vector &y,
-	                   Vector &w)
+	inline void waxpby_task(double alpha, const Vector *x,
+		double beta,  const Vector *y,
+		Vector *w)
 	{
-		assert(x.local_size <= y.local_size);
-		assert(x.local_size <= w.local_size);
-		const int n = x.local_size;
 
-		for(int i = 0; i < n; ++i)
-			w.coefs[i] = alpha * x.coefs[i] + beta * y.coefs[i];
+		#pragma oss task					\
+			in(*x)						\
+			in(x->coefs[0; x->local_size])			\
+			in(*y)						\
+			in(y->coefs[0; y->local_size])			\
+			in(*w)						\
+			out(w->coefs[0; w->local_size])
+		{
+			assert(x->local_size <= y->local_size);
+			assert(x->local_size <= w->local_size);
+			const int n = x->local_size;
+
+			for(int i = 0; i < n; ++i)
+				w->coefs[i] = alpha * x->coefs[i] + beta * y->coefs[i];
+		}
+
 	}
 
 	//Like waxpby above, except operates on two sets of arguments.

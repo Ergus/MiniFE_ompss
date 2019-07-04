@@ -103,28 +103,43 @@ namespace miniFE
 				ofs << startIndex + i << " " << coefs[i] << std::endl;
 		}
 
-		double dot(const Vector& y) const
-		{
-			const size_t n = local_size;
+	};
 
-			assert(y.local_size >= n);
+	void dot_task(const Vector *x, const Vector *y, double *ret)
+	{
+		#pragma oss task					\
+			in(*x)						\
+			in(x->coefs[0; x->local_size])			\
+			in(*y)						\
+			in(y->coefs[0; y->local_size])			\
+			out(*ret)
+		{
+			const size_t n = x->local_size;
+
+			assert(y->local_size >= n);
 
 			double result = 0.0;
 			for (size_t i = 0; i < n; ++i)
-				result += coefs[i] * y.coefs[i];
+				result += x->coefs[i] * y->coefs[i];
 
-			return result;
+			*ret = result;
 		}
+	}
 
-		double dot2() const
+	void dot2_task(const Vector *x, double * ret)
+	{
+		#pragma oss task					\
+			in(*x)						\
+			in(x->coefs[0; x->local_size])			\
+			out(*ret)
 		{
 			double result = 0.0;
-			for (size_t i = 0; i < local_size; ++i)
-				result += coefs[i] * coefs[i];
+			for (size_t i = 0; i < x->local_size; ++i)
+				result += x->coefs[i] * x->coefs[i];
 
-			return result;
+			*ret = result;
 		}
-	};
+	}
 
 
 	inline std::ostream& operator <<(std::ostream &stream, const Vector &in) {

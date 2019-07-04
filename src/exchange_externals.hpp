@@ -53,21 +53,16 @@ namespace miniFE {
 			MatrixType &A = A_array[id];
 			Vector &x = x_array[id];
 
-			// TODO: Task here (will create a nested)
-			// in A
-			// in x
+			#pragma oss task				\
+				in(A)					\
+				in(A.elements_to_send[0; A.nelements_to_send]) \
+				out(A.send_buffer[0; A.nelements_to_send])
 			{
-				// in A.elements_to_send[0;A.nelements_to_send];
-				// in x.coefs[]
-				// out A.send_buffer[0;A.nelements_to_send];
-				{
-					for (int i = 0; i < A.nelements_to_send; ++i)
-						A.send_buffer[i] = x.coefs[A.elements_to_send[i]];
-				}
+				for (int i = 0; i < A.nelements_to_send; ++i)
+					A.send_buffer[i] = x.coefs[A.elements_to_send[i]];
 			}
 		}
 
-		// TODO:
 		for (size_t id = 0; id < numboxes; ++id) {
 			MatrixType &A = A_array[id];
 			Vector &x = x_array[id];
@@ -76,19 +71,21 @@ namespace miniFE {
 			// the problem inside.  I don't know the whole
 			// dependencies I'll need in advance.  in A (full) out
 			// x.coefs[A.nrows; A.nexternals]
+			#pragma oss task				\
+				in(A)					\
+				in(A.recv_ptr[0; A.nrecv_neighbors])
 			{
 				double *x_external = &(x.coefs[A.nrows]);
 
-				int index = 0;
-				// This can be paralelized if needed easily
 				for (int i = 0; i < A.nrecv_neighbors; ++i) {
-					for (int j = 0; j < A.recv_length[i]; ++j) {
-						x_external[index++] = A.recv_ptr[i][j];
-					}
-				}
 
+					// This creates task internally
+					ompss_memcpy_task(x_external, A.recv_ptr[i], A.recv_length[i]);
+
+					x_external += A.recv_length[i];
+				}
 				// Assert that we copied all the elements
-				assert(index == A.nexternals);
+				// assert(index == A.nexternals);
 			}
 		}
 	}

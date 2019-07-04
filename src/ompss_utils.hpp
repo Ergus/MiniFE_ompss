@@ -67,14 +67,6 @@ std::ostream &array_to_stream(const T *in, size_t size,
 }
 
 
-template <typename T>
-void reduce_sum(T &out, const T *in, size_t size)
-{
-	out = 0;
-	for (size_t i = 0; i < size; ++i)
-		out += in[i];
-}
-
 #ifdef NANOS6 // ===============================================================
 
 // Nanos6 defined (this can go in a file)
@@ -140,6 +132,29 @@ void copy_local_to_global_task(T *vout, const T *vin, size_t size)
 }
 
 
+template<typename T>
+void ompss_memcpy_task(T *pout, const T *pin, size_t size)
+{
+	#pragma oss task			\
+		in(pin[0; size])		\
+		out(pout[0; size])
+	for (size_t i = 0; i < size; ++i)
+		pout[i] = pin[i];
+}
+
+template <typename T>
+void reduce_sum_task(T *vout, const T *vin, size_t size)
+{
+	#pragma oss task			\
+		in(vin[0; size])		\
+		out(*vout)
+	{
+		*vout = 0;
+		for (size_t i = 0; i < size; ++i)
+			*vout += in[i];
+	}
+}
+
 template<typename T, typename Container>
 size_t stl_to_global_task(T **vout, const Container &vin)
 {
@@ -153,18 +168,12 @@ size_t stl_to_global_task(T **vout, const Container &vin)
 	for (const T &a : vin)
 		tmp[i++] = a;
 
+	ompss_memcpy_task((*vout), tmp, sz);
+
 	dbvprintf("Copy %ld bytes -> %p\n", sz, (void *) vout);
 
-	#pragma oss task in(tmp[0;sz]) out(ret[0;sz])
-	{
-		memcpy((void *)*vout, (void *)vin, sz * sizeof(T));
-	}
-	#pragma taskwait
-
-	rrl_free(tmp, sz * sizeof(T));
 	return sz;
 }
-
 
 #define get_node_id() nanos6_get_cluster_node_id()
 #define get_nodes_nr() nanos6_get_cluster_nodes()
@@ -222,6 +231,21 @@ void copy_local_to_global_task(T *vout, const T *vin, size_t size)
 	memcpy(vout, vin, size * sizeof(T));
 }
 
+template<typename T>
+void ompss_memcpy_task(T *pout, const T *pin, size_t size)
+{
+	for (size_t i = 0; i < size; ++i)
+		pout[i] = pin[i];
+}
+
+template <typename T>
+void reduce_sum_task(T *out, const T *in, size_t size)
+{
+	*out = 0;
+	for (size_t i = 0; i < size; ++i)
+		*out += in[i];
+}
+
 template<typename T, typename Container>
 size_t stl_to_global_task(T **vout, const Container &vin)
 {
@@ -229,17 +253,15 @@ size_t stl_to_global_task(T **vout, const Container &vin)
 
 	*vout = (T *) rrd_malloc(sz * sizeof(T));
 
-	dbvprintf("Copy %ld bytes -> %p\n", sz, (void *) vout);
-
 	// Copy from container to local memory, this is initialization any way.
 	size_t i = 0;
 	for (const T &a : vin)
 		(*vout)[i++] = a;
 
+	dbvprintf("Copy %ld bytes -> %p\n", sz, (void *) vout);
+
 	return sz;
 }
-
-
 
 #define get_node_id() 0
 #define get_nodes_nr() 1

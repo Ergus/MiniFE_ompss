@@ -41,8 +41,13 @@
 
 namespace miniFE {
 
-template<typename MatrixType>
-size_t compute_matrix_stats(const MatrixType *A_array, int numboxes, YAML_Doc& ydoc)
+	#pragma ompss task						\
+		in(A_array[0; numboxes])				\
+		out(global_nnz)
+	void compute_matrix_stats(const CSRMatrix *A_array,
+		int numboxes,
+		YAML_Doc& ydoc,
+		size_t &global_nnz)
 {
 
 	int min_nrows = 0, max_nrows = 0, global_nrows = 0;
@@ -77,7 +82,7 @@ size_t compute_matrix_stats(const MatrixType *A_array, int numboxes, YAML_Doc& y
 	double avg_nrows = (double) global_nrows / numboxes;
 	double avg_nnz = dglobal_nnz / numboxes;
 
-	size_t global_nnz = static_cast<size_t>(std::ceil(dglobal_nnz));
+	global_nnz = static_cast<size_t>(std::ceil(dglobal_nnz));
 	size_t min_nnz = static_cast<size_t>(std::ceil(dmin_nnz));
 	size_t max_nnz = static_cast<size_t>(std::ceil(dmax_nnz));
 	size_t global_num_rows = global_nrows;
@@ -108,7 +113,7 @@ size_t compute_matrix_stats(const MatrixType *A_array, int numboxes, YAML_Doc& y
 	ydoc.get("Matrix attributes")->add("NNZ per proc MAX", max_nnz);
 	ydoc.get("Matrix attributes")->add("NNZ per proc AVG", avg_nnz);
 
-	return global_nnz;
+	global_nnz;
 }
 
 }//namespace miniFE

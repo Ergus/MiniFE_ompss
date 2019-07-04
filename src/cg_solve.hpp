@@ -33,12 +33,13 @@
 
 #include <Vector_functions.hpp>
 #include <mytimer.hpp>
+#include "CSRMatrix.hpp"
 
 #include <outstream.hpp>
 
 namespace miniFE {
 
-	inline int breakdown(double inner, const Vector &v, const Vector &w)
+	inline int breakdown(double inner, const Vector *v, const Vector *w)
 	{
 		//This is code that was copied from Aztec, and originally written
 		//by my hero, Ray Tuminaro.
@@ -47,14 +48,21 @@ namespace miniFE {
 		//v and w are considered orthogonal if
 		//  |inner| < 100 * ||v||_2 * ||w||_2 * epsilon
 
-		const double vnorm = std::sqrt(v.dot2());
-		const double wnorm = std::sqrt(w.dot2());
+		double vnorm = 0;
+		dot2_task(v, &vnorm);
+
+		double wnorm = 0;
+		dot2_task(w, &wnorm);
+		#pragma oss taskwait
+
+		vnorm = std::sqrt(vnorm);
+		wnorm = std::sqrt(wnorm);
+
 		return std::abs(inner) <= 100 * vnorm * wnorm * std::numeric_limits<double>::epsilon();
 	}
 
 
-	template<typename MatrixType>
-	void cg_solve_all(MatrixType *A_array, size_t numboxes,
+	void cg_solve_all(CSRMatrix *A_array, size_t numboxes,
 	                  const Vector *b_array, Vector *x_array,
 	                  int max_iter,
 	                  const double tolerance,
@@ -69,16 +77,17 @@ namespace miniFE {
 		Vector *p_array = new Vector[numboxes];
 		Vector *Ap_array = new Vector[numboxes];
 
+
 		for (size_t i = 0; i < numboxes; ++i) {
 			const int first_row_i = b_array[i].startIndex;
 			const int local_nrows_i = A_array[i].nrows;
 			const int Anumcols = A_array[i].num_cols;
 
-			//TODO: Task here
 			r_array[i].init(first_row_i, local_nrows_i);
 			Ap_array[i].init(first_row_i, local_nrows_i);
 			p_array[i].init(0, Anumcols);
 		}
+
 
 		normr = 0;
 		double rtrans[numboxes] = {};
@@ -91,16 +100,14 @@ namespace miniFE {
 		if (print_freq < 1)
 			print_freq = 1;
 
+		TICK();
 		for (size_t i = 0; i < numboxes; ++i) {
 			assert(A_array[i].has_local_indices);
 
-			// TODO: task here
-			{
-				TICK();
-				waxpby(1.0, x_array[i], 0.0, x_array[i], p_array[i]);
-				TOCK(tWAXPY[i]);
-			}
+			waxpby_task(1.0, &x_array[i], 0.0, &x_array[i], &p_array[i]);
+
 		}
+		TOCK(tWAXPY[0]);
 
 		// This creates tasks internally
 		exchange_externals_all(A_array, p_array, numboxes);
@@ -108,24 +115,26 @@ namespace miniFE {
 		for (size_t i = 0; i < numboxes; ++i) {
 			// Tasks here
 			// in A_array[i] (full)
+			#pragma in(A_array[i])
 			{
 				TICK();
-				A_array[i].matvec(p_array[i], Ap_array[i]);
+				matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
 				TOCK(tMATVEC[i]);
 
 				TICK();
-				waxpby(1.0, b_array[i], -1.0, Ap_array[i], r_array[i]);
+				waxpby_task(1.0, &b_array[i], -1.0, &Ap_array[i], &r_array[i]);
 				TOCK(tWAXPY[i]);
 
 
 				TICK();
-				rtrans[i] = r_array[i].dot2();
+				dot2_task(&r_array[i], &rtrans[i]);
 				TOCK(tDOT[i]);
 			}
 		}
 
 		// TODO: taskwait here
-		reduce_sum(rtrans_global, rtrans, numboxes);
+		reduce_sum_task(&rtrans_global, rtrans, numboxes);
+		#pragma oss taskwait
 
 		normr = std::sqrt(rtrans_global);
 		std::cout << "Initial Residual = "<< normr << std::endl;
@@ -146,9 +155,9 @@ namespace miniFE {
 					// TODO: Task here
 					// in: r_array[i] + array
 					// out p_array[i] + array
-					TICK();
-					waxpby(1.0, r_array[i], 0.0, r_array[i], p_array[i]);
-					TOCK(tWAXPY[i]);
+					// TICK();
+					waxpby_task(1.0, &r_array[i], 0.0, &r_array[i], &p_array[i]);
+					// TOCK(tWAXPY[i]);
 				}
 			} else {
 
@@ -158,18 +167,18 @@ namespace miniFE {
 					// TODO: Task here
 					// out: oldrtrans[i]
 					// inout rtrans[i]
-					TICK();
-					rtrans[i] = r_array[i].dot2();
-					TOCK(tDOT[i]);
+					// TICK();
+					dot2_task(&r_array[i], &rtrans[i]);
+					// TOCK(tDOT[i]);
 				}
 
 
 				// TODO: task_here
 				// in rtrans[0;numboxes]
 				// out rtrans_global
-				{
-					reduce_sum(rtrans_global, rtrans, numboxes);
-				}
+
+				reduce_sum_task(&rtrans_global, rtrans, numboxes);
+				#pragma oss taskwait
 
 				for (size_t i = 0; i < numboxes; ++i) {
 					// in rtrans_global
@@ -177,7 +186,7 @@ namespace miniFE {
 					{
 						TICK();
 						double beta = rtrans_global / oldrtrans;
-						waxpby(1.0, r_array[i], beta, p_array[i], p_array[i]);
+						waxpby_task(1.0, &r_array[i], beta, &p_array[i], &p_array[i]);
 						TOCK(tWAXPY[i]);
 					}
 				}
@@ -203,26 +212,23 @@ namespace miniFE {
 				// out p_ap_dot[i]
 				{
 					TICK();
-					A_array[i].matvec(p_array[i], Ap_array[i]);
+					matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
 					TOCK(tMATVEC[i]);
 
 					TICK();
-					p_ap_dot[i] = Ap_array[i].dot(p_array[i]);
+					dot_task(&Ap_array[i], &p_array[i], &p_ap_dot[i]);
 					TOCK(tDOT[i]);
 				}
 			}
 
-			// TODO: task here (or taskwait)
-			// in k
-			// in p_ap_dot[0; numboxes]
-			// out p_ap_dot_global
-			{
-				reduce_sum(p_ap_dot_global, p_ap_dot, numboxes);
-				#ifdef MINIFE_DEBUG
-				os << "iter " << k << ", p_ap_dot = " << p_ap_dot_global;
-				os.flush();
-				#endif
-			}
+
+			reduce_sum_task(&p_ap_dot_global, p_ap_dot, numboxes);
+			#pragma oss taskwait
+
+			#ifdef MINIFE_DEBUG
+			os << "iter " << k << ", p_ap_dot = " << p_ap_dot_global;
+			os.flush();
+			#endif
 
 			if (p_ap_dot_global < brkdown_tol) {
 
@@ -235,23 +241,32 @@ namespace miniFE {
 					// in p_array[i]
 					// out breakdown[i]
 					{
-						breakdown_array[i] = breakdown(p_ap_dot_global, Ap_array[i], p_array[i]);
+						breakdown_array[i] =
+							breakdown(p_ap_dot_global, &Ap_array[i], &p_array[i]);
 					}
 				}
 
 				// TODO taskwait here, because this must run locally.
-				reduce_sum(breakdown_global, breakdown_array, numboxes);
+				reduce_sum_task(&breakdown_global, breakdown_array, numboxes);
+				#pragma oss taskwait
 
 				if (p_ap_dot_global < 0 || breakdown_global) {
-					std::cerr << "miniFE::cg_solve ERROR, numerical breakdown!"<<std::endl;
+					std::cerr << "miniFE::cg_solve ERROR, numerical breakdown!"
+					          << std::endl;
 					#ifdef MINIFE_DEBUG
 					os << "ERROR, numerical breakdown!"<<std::endl;
 					#endif
 					//update the timers before jumping out.
-					reduce_sum(my_cg_times[WAXPY], tWAXPY, numboxes);
-					reduce_sum(my_cg_times[DOT], tDOT, numboxes);
-					reduce_sum(my_cg_times[MATVEC], tMATVEC, numboxes);
+					reduce_sum_task(&my_cg_times[WAXPY], tWAXPY, numboxes);
+					reduce_sum_task(&my_cg_times[DOT], tDOT, numboxes);
+					reduce_sum_task(&my_cg_times[MATVEC], tMATVEC, numboxes);
 					my_cg_times[TOTAL] = mytimer() - total_time;
+					#pragma oss taskwait
+
+					delete [] r_array;
+					delete [] p_array;
+					delete [] Ap_array;
+
 					return;
 				} else {
 					brkdown_tol = 0.1 * p_ap_dot_global;
@@ -266,10 +281,10 @@ namespace miniFE {
 			for (size_t i = 0; i < numboxes; ++i) {
 				// Task here
 				TICK();
-				waxpby(1.0, x_array[i], alpha, p_array[i], x_array[i]);
+				waxpby_task(1.0, &x_array[i], alpha, &p_array[i], &x_array[i]);
 
 				// Task here
-				waxpby(1.0, r_array[i], -alpha, Ap_array[i], r_array[i]);
+				waxpby_task(1.0, &r_array[i], -alpha, &Ap_array[i], &r_array[i]);
 				TOCK(tWAXPY[i]);
 			}
 			num_iters = k;
@@ -277,9 +292,11 @@ namespace miniFE {
 
 		// TODO: taskwait here
 
-		reduce_sum(my_cg_times[WAXPY], tWAXPY, numboxes);
-		reduce_sum(my_cg_times[DOT], tDOT, numboxes);
-		reduce_sum(my_cg_times[MATVEC], tMATVEC, numboxes);
+		reduce_sum_task(&my_cg_times[WAXPY], tWAXPY, numboxes);
+		reduce_sum_task(&my_cg_times[DOT], tDOT, numboxes);
+		reduce_sum_task(&my_cg_times[MATVEC], tMATVEC, numboxes);
+		#pragma oss taskwait
+
 		my_cg_times[TOTAL] = mytimer() - total_time;
 
 		delete [] r_array;

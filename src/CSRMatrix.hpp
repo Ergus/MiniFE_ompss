@@ -388,24 +388,37 @@ namespace miniFE
 
 			}
 		}
+	};
 
-		void matvec(const Vector &x, Vector &y)
+
+	// TODO: pretty sure this is an out in y->coefs
+	void matvec_task(const CSRMatrix *A, const Vector *x, Vector *y)
+	{
+		#pragma oss task					\
+			in(*A)						\
+			in(A.row_offsets[0; A->nrows + 1])		\
+			in(A->packed_cols[0; nnz])			\
+			in(A->packed_coefs[0; nnz])			\
+			in(*x)						\
+			in(x->coefs[0; x->local_size])			\
+			in(*y)						\
+			inout(y->coefs[0; y->local_size])
 		{
-			double beta = 0.0;
+			const double beta = 0.0;  // I don't really understand what is this for
 
-			for (size_t row = 0; row < nrows; ++row) {
-				double sum = beta * y.coefs[row];
+			for (size_t row = 0; row < A->nrows; ++row) {
+				double sum = beta * y->coefs[row];
 
-				for(int i = row_offsets[row]; i < row_offsets[row + 1]; ++i) {
-					const int col = packed_cols[i];
-					sum += packed_coefs[i] * x.coefs[col];
+				for(int i = A->row_offsets[row]; i < A->row_offsets[row + 1]; ++i) {
+					const int col = A->packed_cols[i];
+					sum += A->packed_coefs[i] * x->coefs[col];
 				}
 
 				//std::cout << "row[" << row << "] = " << sum << std::endl;
-				y.coefs[row] = sum;
+				y->coefs[row] = sum;
 			}
 		}
-	};
+	}
 
 }//namespace miniFE
 

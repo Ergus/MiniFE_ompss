@@ -308,7 +308,8 @@ namespace miniFE
 		b.write_vector("b_local.vec");
 		#endif
 
-		size_t global_nnz = compute_matrix_stats(A_array, numboxes, ydoc);
+		size_t global_nnz;
+		compute_matrix_stats(A_array, numboxes, ydoc, global_nnz);
 
 		//Prepare to perform conjugate gradient solve:
 
