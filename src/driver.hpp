@@ -218,7 +218,7 @@ namespace miniFE
 					in(mesh_i->ompss2_ids_to_rows[0; mesh_i->ids_to_rows_size]) \
 					inout(*A_i)			\
 					inout(A_i->rows[0; A_i->nrows]) \
-					inout(A_i->rows_offsets[0; A_i->nrows + 1]) \
+					inout(A_i->row_offsets[0; A_i->nrows + 1]) \
 					inout(A_i->packed_cols[0; A_i->nnz]) \
 					inout(A_i->packed_coefs[0; A_i->nnz]) \
 					inout(*b_i)			\
@@ -265,7 +265,7 @@ namespace miniFE
 					in(mesh_i->ompss2_bc_rows_1[0; mesh_i->bc_rows_1_size]) \
 					in(*A_i)			\
 					in(A_i->rows[0; A_i->nrows])	\
-					inout(A_i->rows_offsets[0; A_i->nrows + 1]) \
+					in(A_i->row_offsets[0; A_i->nrows + 1]) \
 					in(A_i->packed_cols[0; A_i->nnz]) \
 					inout(A_i->packed_coefs[0; A_i->nnz]) \
 					inout(*b_i)			\

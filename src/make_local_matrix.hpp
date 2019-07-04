@@ -39,11 +39,11 @@
 namespace miniFE {
 
 	#pragma oss task						\
-		inout(A)						\
-		in(A_i->rows[0; A_i->nrows])				\
-		in(A_i->rows_offsets[0; A_i->nrows + 1])		\
-		in(A_i->packed_cols[0; A_i->nnz])			\
-		inout(A_i->packed_coefs[0; A_i->nnz])			\
+		inout(*A)						\
+		in(rows[0; nrows])				\
+		in(row_offsets[0; nrows + 1])		\
+		in(packed_cols[0; nnz])			\
+		inout(packed_coefs[0; nnz])			\
 		in(nrows_array[0; numboxes])				\
 		in(start_row_array[0; numboxes])			\
 		in(stop_row_array[0; numboxes])				\
@@ -60,7 +60,12 @@ namespace miniFE {
 	                    int *recv_list_local,
 	                    int &nrecv_list_local,
 	                    int *recv_length_local,
-	                    int &nrecv_length_local)
+	                    int &nrecv_length_local,
+	                    int *rows,
+	                    int *row_offsets,
+	                    int *packed_cols,
+	                    double *packed_coefs,
+	                    size_t nnz, size_t nrows)
 	{
 
 		// First count and find the external elements
@@ -72,7 +77,7 @@ namespace miniFE {
 		const int stop_row = stop_row_array[id];
 		const int local_nrow = nrows_array[id];
 
-		for (size_t i = 0; i < A->nrows; ++i) {
+		for (size_t i = 0; i < nrows; ++i) {
 			int *Acols = NULL;
 			double *Acoefs = NULL;
 			size_t row_len = 0;
@@ -190,7 +195,7 @@ namespace miniFE {
 	}
 
 	#pragma oss task						\
-		inout(A)						\
+		inout(*A)						\
 		in(recv_list_global[0; numboxes * numboxes])		\
 		in(nrecv_list_global[0; numboxes])			\
 		in(recv_length_global[0; numboxes * numboxes])		\
@@ -251,11 +256,9 @@ namespace miniFE {
 		A->send_buffer = (double *) rrd_malloc(nsend_length_local * sizeof(double));
 	}
 
+	// TODO: possible error here
 	#pragma oss task						\
 		in(A_array[0; numboxes])				\
-		out(A_array[id]->send_neighbors[0; nsend_list_local])	\
-		out(A_array[id]->send_length[0; nsend_list_local])	\
-		out(A_array[id]->elements_to_send[0; nsend_length_local]) \
 		in(nrows_array[id])					\
 		in(start_row_array[id])					\
 		in(stop_row_array[id])					\
@@ -264,10 +267,10 @@ namespace miniFE {
 		in(recv_length_global[0; numboxes * numboxes])		\
 		in(nrecv_length_global[0; numboxes])			\
 		in(send_list_local[0; numboxes])			\
-		in(nsend_list_local)					\
 		in(send_length_local[0; numboxes])			\
-		in(nsend_length_local)
-
+		out(Asend_neighbors[0; nsend_list_local])		\
+		out(Asend_length[0; nsend_list_local])			\
+		out(Aelements_to_send[0; nsend_length_local])
 	void set_send_info_task(CSRMatrix *A_array,
 	                        size_t id,
 	                        size_t numboxes,
@@ -281,7 +284,10 @@ namespace miniFE {
 	                        const int *send_list_local,
 	                        const int nsend_list_local,
 	                        const int *send_length_local,
-	                        const int nsend_length_local)
+	                        const int nsend_length_local,
+	                        int *Asend_neighbors,
+	                        int *Asend_length,
+	                        int *Aelements_to_send)
 	{
 
 		CSRMatrix *A = &A_array[id];
@@ -413,16 +419,21 @@ namespace miniFE {
 			//int *tmp_neighbors_local = &tmp_neighbors_global[numboxes * id];
 			int *recv_list_local = &recv_list_global[id * numboxes];
 			int *recv_length_local = &recv_length_global[id * numboxes];
+			CSRMatrix *A = &A_array[id];
 
 			// This is already a task (look before)
-			fill_recv_task(&A_array[id], id, numboxes,
+			fill_recv_task(A, id, numboxes,
 			               nrows_array,
 			               start_row_array,
 			               stop_row_array,
 			               recv_list_local,
 			               nrecv_list_global[id],
 			               recv_length_local,
-			               nrecv_length_global[id]);
+			               nrecv_length_global[id],
+			               A->rows, A->row_offsets,
+			               A->packed_cols, A->packed_coefs,
+			               A->nnz,
+			               A->nrows);
 
 
 		}
@@ -451,6 +462,7 @@ namespace miniFE {
 
 		for (size_t id = 0; id < numboxes; ++id) {
 
+			CSRMatrix *A = &A_array[id];
 			int *send_list_local = &send_list_global[id * numboxes];
 			int *send_length_local = &send_length_global[id * numboxes];
 
@@ -467,7 +479,10 @@ namespace miniFE {
 			                   send_list_local,
 			                   nsend_list_global[id],
 			                   send_length_local,
-			                   nsend_list_global[id]);
+			                   nsend_list_global[id],
+			                   A->send_neighbors,
+			                   A->send_length,
+			                   A->elements_to_send);
 		}
 
 		#pragma oss taskwait

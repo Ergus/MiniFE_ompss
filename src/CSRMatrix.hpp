@@ -41,154 +41,6 @@
 namespace miniFE
 {
 
-	void init_row_task(const int *row_coords,
-	              const int *global_nodes,
-	              int global_nrows,
-	              const simple_mesh_description *mesh,
-	              int *packed_cols,
-	              double *packed_coefs)
-	{
-		const int ix = row_coords[0];
-		const int iy = row_coords[1];
-		const int iz = row_coords[2];
-		int idx = 0;
-		for(int sz = -1; sz <= 1; ++sz) {
-			for(int sy = -1; sy <= 1; ++sy) {
-				for(int sx = -1; sx <= 1; ++sx) {
-					const int col_id = get_id(global_nodes[0],
-					                          global_nodes[1],
-					                          global_nodes[2],
-					                          ix + sx, iy + sy, iz + sz);
-					if (col_id >= 0 && col_id < global_nrows) {
-						const int col = mesh->map_id_to_row(col_id);
-						assert (col < global_nrows);
-						packed_cols[idx] = col;
-						packed_coefs[idx] = 0;
-						++idx;
-					}
-				}
-			}
-		}
-
-		sort_if_needed(packed_cols, idx);
-	}
-
-	// TODO: make this weak when all works
-	void init_matrix_task(const int *row_coords,
-		const int *global_nodes,
-		int global_nrows,
-		const simple_mesh_description *mesh,
-		const int *row_offsets,
-		int *packed_cols,
-		double *packed_coefs,
-		int nrows, int nnz)
-	{
-		#pragma oss task			\
-			in(row_coords[0; 3 * nrows])	\
-			in(global_nodes[0; 3])		\
-			in(global_nrows[0; nrows])	\
-			in(*mesh)			\
-			in(row_offsets[0; nrows + 1])	\
-			out(packed_cols[0; nnz])		\
-			out(packed_coefs[0; nnz])
-		{
-			for(int i = 0; i < nrows; ++i) {
-
-				const int offset = row_offsets[i];
-				const int next_offset = row_offsets[i + 1];
-
-				#pragma oss task			\
-					in(row_coords[3 * i; 3])	\
-					in(global_nodes[0; 3])		\
-					in(*mesh)			\
-					in(mesh->ompss2_ids_to_rows[0; mesh->ids_to_rows_size]) \
-					out(packed_cols[offset: next_offset]) \
-					out(packed_coefs[offset: next_offset])
-				{
-					init_row_task(&row_coords[3 * i],
-					              global_nodes,
-					              global_nrows,
-					              mesh,
-					              &packed_cols[offset],
-					              &packed_coefs[offset]);
-				}
-			}
-		}
-	}
-
-
-	void init_offsets_task(int *row_coords,
-	                       int *rows,
-	                       int *row_offsets,
-	                       int *global_nodes,
-	                       const simple_mesh_description *mesh,
-	                       size_t global_nrows,
-	                       size_t nrows,
-	                       size_t &nnz,
-	                       int &first_row)
-	{
-		#pragma oss task \
-			out(row_coords[0; nrows * 3])			\
-			out(rows[0; nrows])				\
-			out(row_offsets[0; tnrows + 1])			\
-			in(*box)					\
-			in(global_nodes[0; 3])				\
-			in(mesh[0])					\
-			in(mesh_i[0].ompss2_bc_rows_0[0; mesh_i[0].bc_rows_0_size]) \
-			in(mesh_i[0].ompss2_bc_rows_1[0; mesh_i[0].bc_rows_1_size]) \
-			in(mesh_i[0].ompss2_ids_to_rows[0; mesh_i[0].ids_to_rows_size]) \
-			in(tnrows)					\
-			out(nnz)					\
-			out(first_row)
-
-		{
-			const Box &box = mesh->extended_box;
-			size_t tnnz = 0;
-			size_t roffset = 0;
-
-			for(int iz = box[2][0]; iz < box[2][1]; ++iz) {
-				for(int iy = box[1][0]; iy < box[1][1]; ++iy) {
-					for(int ix = box[0][0]; ix < box[0][1]; ++ix) {
-						const int row_id =
-							get_id(global_nodes[0],
-							       global_nodes[1],
-							       global_nodes[2],
-							       ix, iy, iz);
-
-						rows[roffset] = mesh->map_id_to_row(row_id);
-						row_coords[roffset * 3] = ix;
-						row_coords[roffset * 3 + 1] = iy;
-						row_coords[roffset * 3 + 2] = iz;
-						row_offsets[roffset++] = tnnz;
-
-						for(int sz = -1; sz <= 1; ++sz) {
-							for(int sy = -1; sy <= 1; ++sy) {
-								for(int sx = -1; sx <= 1; ++sx) {
-									const size_t col_id =
-										get_id(global_nodes[0],
-										       global_nodes[1],
-										       global_nodes[2],
-										       ix + sx,
-										       iy + sy,
-										       iz + sz);
-									if (col_id >= 0 &&
-									    col_id < global_nrows)
-										++tnnz;
-								}
-							}
-						}
-					}
-				}
-			}
-			row_offsets[nrows] = tnnz;
-			nnz = tnnz;
-			first_row = rows[0];
-			assert(roffset == nrows);
-
-		}
-		#pragma oss taskwait
-	}
-
 	class CSRMatrix {
 	public:
 		bool has_local_indices;
@@ -391,27 +243,40 @@ namespace miniFE
 	};
 
 
-	// TODO: pretty sure this is an out in y->coefs
 	void matvec_task(const CSRMatrix *A, const Vector *x, Vector *y)
 	{
-		#pragma oss task					\
-			in(*A)						\
-			in(A.row_offsets[0; A->nrows + 1])		\
-			in(A->packed_cols[0; nnz])			\
-			in(A->packed_coefs[0; nnz])			\
-			in(*x)						\
-			in(x->coefs[0; x->local_size])			\
-			in(*y)						\
-			inout(y->coefs[0; y->local_size])
+		int *Arow_offsets = A->row_offsets;
+		size_t Anrows = A->nrows;
+		int *Apacked_cols = A->packed_cols;
+		double *Apacked_coefs = A->packed_coefs;
+		double *xcoefs = x->coefs;
+		size_t xlocal_size = x->local_size;
+		double *ycoefs = y->coefs;
+		size_t ylocal_size = y->local_size;
+		size_t Annz = A->nnz;
+
+		assert(xlocal_size >= Anrows);
+		assert(ylocal_size >= Anrows);
+
+		#pragma oss task				\
+			in(*A)					\
+			in(Arow_offsets[0; Anrows + 1])	\
+			in(Apacked_cols[0; Annz])		\
+			in(Apacked_coefs[0; Annz])		\
+			in(*x)					\
+			in(xcoefs[0; xlocal_size])		\
+			in(*y)					\
+			inout(ycoefs[0; ylocal_size])
 		{
 			const double beta = 0.0;  // I don't really understand what is this for
 
-			for (size_t row = 0; row < A->nrows; ++row) {
-				double sum = beta * y->coefs[row];
+			for (size_t row = 0; row < Anrows; ++row) {
+				double sum = beta * ycoefs[row];
 
-				for(int i = A->row_offsets[row]; i < A->row_offsets[row + 1]; ++i) {
-					const int col = A->packed_cols[i];
-					sum += A->packed_coefs[i] * x->coefs[col];
+				for(int i = Arow_offsets[row]; i < Arow_offsets[row + 1]; ++i) {
+					const int col = Apacked_cols[i];
+					assert((size_t)i < Annz);
+					sum += Apacked_coefs[i] * xcoefs[col];
 				}
 
 				//std::cout << "row[" << row << "] = " << sum << std::endl;

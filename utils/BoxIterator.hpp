@@ -65,14 +65,14 @@ public:
     return BoxIterator(box, true/*at_end==true*/);
   }
 
-  BoxIterator& operator=(const BoxIterator& src)
+  BoxIterator& operator=(const BoxIterator *src)
   {
-    box_[0][0] = src.box_[0][0]; box_[0][1] = src.box_[0][1];
-    box_[1][0] = src.box_[1][0]; box_[1][1] = src.box_[1][1];
-    box_[2][0] = src.box_[2][0]; box_[2][1] = src.box_[2][1];
-    x = src.x;
-    y = src.y;
-    z = src.z;
+    box_[0][0] = src->box_[0][0]; box_[0][1] = src->box_[0][1];
+    box_[1][0] = src->box_[1][0]; box_[1][1] = src->box_[1][1];
+    box_[2][0] = src->box_[2][0]; box_[2][1] = src->box_[2][1];
+    x = src->x;
+    y = src->y;
+    z = src->z;
     return *this;
   }
 

@@ -8,6 +8,6 @@
 
 #define MINIFE_CXX "'/home/ergo/almacen/repo/PhD/gcc/gcc-7.2.0.install_arch/bin/g++'"
 #define MINIFE_CXX_VERSION "'g++ (GCC) 7.2.0'"
-#define MINIFE_CXXFLAGS "'-O3 -DNDEBUG -std=c++11'"
+#define MINIFE_CXXFLAGS "'-O0 -g -std=c++11 -Wall'"
 
 #endif

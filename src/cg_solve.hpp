@@ -33,11 +33,91 @@
 
 #include <Vector_functions.hpp>
 #include <mytimer.hpp>
-#include "CSRMatrix.hpp"
 
+#include "CSRMatrix.hpp"
 #include <outstream.hpp>
 
 namespace miniFE {
+
+
+	void exchange_externals_all(CSRMatrix *A_array, Vector *x_array, size_t numboxes)
+	{
+
+		#ifdef MINIFE_DEBUG
+		std::ostream& os = outstream();
+		os << "entering exchange_externals\n";
+		#endif
+
+		if (numboxes < 2)
+			return;
+
+		for (size_t id = 0; id < numboxes; ++id) {
+
+			CSRMatrix *A = &A_array[id];
+			Vector *x = &x_array[id];
+
+			int *Aelements_to_send = A->elements_to_send;
+			double *Asend_buffer = A->send_buffer;
+			int Anelements_to_send = A->nelements_to_send;
+			double *xcoefs = x->coefs;
+			int xsize = x->local_size;
+			#pragma oss task				\
+		 		in(*A)					\
+		 		in(Aelements_to_send[0; Anelements_to_send]) \
+		 		out(Asend_buffer[0; Anelements_to_send]) \
+		 		in(*x)					\
+		 		in(x->coefs[0; xsize])
+			{
+				for (int i = 0; i < Anelements_to_send; ++i) {
+					assert(Aelements_to_send[i] < xsize);
+					Asend_buffer[i] = xcoefs[Aelements_to_send[i]];
+				}
+			}
+		}
+
+		for (size_t id = 0; id < numboxes; ++id) {
+			CSRMatrix *A = &A_array[id];
+			Vector *x = &x_array[id];
+
+			double **Arecv_ptr = A->recv_ptr;
+			int Anrecv_neighbors = A->nrecv_neighbors;
+			int *Arecv_length = A->recv_length;
+			int Anexternals = A->nexternals;
+			double *x_external = &(x->coefs[A->nrows]);
+
+			// TODO: Task here to copy locally, but then there is
+			// the problem inside.  I don't know the whole
+			// dependencies I'll need in advance.  in A (full) out
+			// x.coefs[A.nrows; A.nexternals]
+			#pragma oss task				\
+				in(*A)					\
+				in(Arecv_ptr[0; Anrecv_neighbors])	\
+		 		in(Arecv_length[0; Anrecv_neighbors])	\
+		 		out(x_external[0; Anexternals])
+			{
+				const double *x_start = x_external;
+
+				for (int i = 0; i < Anrecv_neighbors; ++i) {
+
+					// This creates task internally
+					ompss_memcpy_task(x_external, Arecv_ptr[i], Arecv_length[i]);
+
+					x_external += Arecv_length[i];
+
+					// boundary check
+					assert(x_external - x_start <= Anexternals);
+				}
+				// Assert that we copied all the elements
+				//assert(index == A.nexternals);
+			}
+		}
+	}
+	
+	int myfunction(CSRMatrix *A_array)
+	{
+		return 3;
+	}
+
 
 	inline int breakdown(double inner, const Vector *v, const Vector *w)
 	{
@@ -113,6 +193,7 @@ namespace miniFE {
 		}
 		//TOCK(tWAXPY[0]);
 
+		myfunction(A_array);
 		// This creates tasks internally
 		exchange_externals_all(A_array, p_array, numboxes);
 
