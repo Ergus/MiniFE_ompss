@@ -355,7 +355,7 @@ namespace miniFE
 			std::cout << "verifying solution at ~ (0.5, 0.5, 0.5) ..." << std::endl;
 			#endif
 
-			verify_result = verify_solution(global_box, local_node_box_array,
+			verify_result = verify_solution(&global_box, local_node_box_array,
 			                                x_array, numboxes, 0.06, verify_whole_domain);
 		}
 

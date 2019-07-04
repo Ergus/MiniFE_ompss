@@ -49,9 +49,9 @@ namespace miniFE {
 		//  |inner| < 100 * ||v||_2 * ||w||_2 * epsilon
 
 		double vnorm = 0;
-		dot2_task(v, &vnorm);
-
 		double wnorm = 0;
+
+		dot2_task(v, &vnorm);
 		dot2_task(w, &wnorm);
 		#pragma oss taskwait
 
@@ -146,58 +146,36 @@ namespace miniFE {
 		os << "brkdown_tol = " << brkdown_tol << std::endl;
 		#endif
 
-		// TODO: this is the main part of the code, the tasks must go here,
-		// not in the nested functions (if possible)
 		for (int k = 1; k <= max_iter && normr > tolerance; ++k) {
 
 			if (k == 1) {
-				for (size_t i = 0; i < numboxes; ++i) {
-					// TODO: Task here
-					// in: r_array[i] + array
-					// out p_array[i] + array
-					// TICK();
+				for (size_t i = 0; i < numboxes; ++i)
 					waxpby_task(1.0, &r_array[i], 0.0, &r_array[i], &p_array[i]);
-					// TOCK(tWAXPY[i]);
-				}
 			} else {
 
 				oldrtrans = rtrans_global;
 				for (size_t i = 0; i < numboxes; ++i)
-				{
-					// TODO: Task here
-					// out: oldrtrans[i]
-					// inout rtrans[i]
-					// TICK();
 					dot2_task(&r_array[i], &rtrans[i]);
-					// TOCK(tDOT[i]);
-				}
 
-
-				// TODO: task_here
-				// in rtrans[0;numboxes]
-				// out rtrans_global
 
 				reduce_sum_task(&rtrans_global, rtrans, numboxes);
 				#pragma oss taskwait
 
+				const double beta = rtrans_global / oldrtrans;
+
 				for (size_t i = 0; i < numboxes; ++i) {
-					// in rtrans_global
-					// in oldrtrans
 					{
-						TICK();
-						double beta = rtrans_global / oldrtrans;
+						//TICK();
 						waxpby_task(1.0, &r_array[i], beta, &p_array[i], &p_array[i]);
-						TOCK(tWAXPY[i]);
+						//TOCK(tWAXPY[i]);
 					}
 				}
 			}
 
-			// TODO: taskwait (or task with in rtrans_global, in k)
-			{
-				normr = std::sqrt(rtrans_global);
-				if (k % print_freq == 0 || k == max_iter)
-					std::cout << "Iteration = " << k << "   Residual = " << normr << std::endl;
-			}
+			// rtrans_global is here because of tw above
+			normr = std::sqrt(rtrans_global);
+			if (k % print_freq == 0 || k == max_iter)
+				std::cout << "Iteration = " << k << "   Residual = " << normr << std::endl;
 
 			double p_ap_dot[numboxes];
 			double p_ap_dot_global = 0.0;
@@ -205,20 +183,13 @@ namespace miniFE {
 			// This creates tasks internally
 			exchange_externals_all(A_array, p_array, numboxes);
 			for (size_t i = 0; i < numboxes; ++i) {
-				// TODO:  task here
-				// in A_array (full)
-				// in p_array[i]
-				// out Ap_array[i]
-				// out p_ap_dot[i]
-				{
-					TICK();
-					matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
-					TOCK(tMATVEC[i]);
+				//TICK();
+				matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
+				//TOCK(tMATVEC[i]);
 
-					TICK();
-					dot_task(&Ap_array[i], &p_array[i], &p_ap_dot[i]);
-					TOCK(tDOT[i]);
-				}
+				//TICK();
+				dot_task(&Ap_array[i], &p_array[i], &p_ap_dot[i]);
+				//TOCK(tDOT[i]);
 			}
 
 
@@ -236,14 +207,8 @@ namespace miniFE {
 				int breakdown_global;
 
 				for (size_t i = 0; i < numboxes; ++i) {
-					// TODO: Task here
-					// in Ap_array[i]
-					// in p_array[i]
-					// out breakdown[i]
-					{
-						breakdown_array[i] =
-							breakdown(p_ap_dot_global, &Ap_array[i], &p_array[i]);
-					}
+					breakdown_array[i] =
+						breakdown(p_ap_dot_global, &Ap_array[i], &p_array[i]);
 				}
 
 				// TODO taskwait here, because this must run locally.
@@ -287,10 +252,10 @@ namespace miniFE {
 				waxpby_task(1.0, &r_array[i], -alpha, &Ap_array[i], &r_array[i]);
 				TOCK(tWAXPY[i]);
 			}
+
+			#pragma oss taskwait
 			num_iters = k;
 		} // for k
-
-		// TODO: taskwait here
 
 		reduce_sum_task(&my_cg_times[WAXPY], tWAXPY, numboxes);
 		reduce_sum_task(&my_cg_times[DOT], tDOT, numboxes);
