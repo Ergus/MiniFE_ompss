@@ -285,6 +285,60 @@ namespace miniFE
 		}
 	}
 
+	template <typename T>
+	void print_vector(std::string vname, size_t size,const  T *vect ,std::ostream &stream)
+	{
+		stream << vname << "["  << size << "]=";
+		for (size_t i = 0; i < size; ++i) {
+			if (i > 0)
+				stream << "; ";
+
+			stream << vect[i];
+		}
+		stream << " ]\n";
+	}
+
+	inline std::ostream& operator <<(std::ostream &stream, const CSRMatrix &in)
+	{
+		stream << "has_local_indices" << "="<< in.has_local_indices << "\n";
+		stream << "global_nrows" << "="<< in.global_nrows << "\n";
+		stream << "nrows" << "="<< in.nrows << "\n";
+		stream << "nnz" << "="<< in.nnz << "\n";
+		stream << "first_row" << "="<< in.first_row << "\n";
+		stream << "num_cols" << "="<< in.num_cols << "\n";
+		stream << "nrecv_neighbors" << "="<< in.nrecv_neighbors << "\n";
+		stream << "nexternals" << "="<< in.nexternals << "\n";
+		stream << "nsend_neighbors" << "="<< in.nsend_neighbors << "\n";
+		stream << "nelements_to_send" << "="<< in.nelements_to_send << "\n";
+
+		for (size_t i = 0; i < in.nrows; ++i) {
+			int *Acols = NULL;
+			double *Acoefs = NULL;
+			size_t row_len = 0;
+			in.get_row_pointers(in.rows[i], row_len, Acols, Acoefs);
+
+			stream << i << ":" << in.rows[i] << ":" << in.row_offsets[i] << "=";
+
+			for (size_t j = 0; j < row_len; ++j) {
+				if (j > 0)
+					stream << "; ";
+				stream << "<" << Acols[j] << ";" << Acoefs[j] << ">";
+			}
+			stream << "]\n";
+		}
+
+		print_vector("recv_neighbors", in.nrecv_neighbors, in.recv_neighbors, stream);
+		print_vector("recv_length", in.nrecv_neighbors, in.recv_length, stream);
+		print_vector("externals", in.nexternals, in.external_index, stream);
+
+		print_vector("send_neighbors", in.nsend_neighbors, in.send_neighbors, stream);
+		print_vector("send_length", in.nsend_neighbors, in.send_length, stream);
+		print_vector("nelements_to_send", in.nelements_to_send, in.elements_to_send, stream);
+
+		return stream;
+	}
+
+
 }//namespace miniFE
 
 #endif

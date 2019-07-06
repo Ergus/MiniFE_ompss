@@ -485,6 +485,11 @@ namespace miniFE {
 			                   A->elements_to_send);
 		}
 
+		for (size_t id = 0; id < numboxes; ++id) {
+			std::cout  << "id: " << id << std::endl;
+			std::cout << A_array[id] << std::endl;
+		}
+
 		#pragma oss taskwait
 
 		rrd_free(nrows_array, numboxes * sizeof(size_t));
