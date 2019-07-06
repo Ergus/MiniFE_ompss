@@ -5,3 +5,4 @@ GTAGS
 *.x
 *.yaml
 compile_commands.json
+*.mat

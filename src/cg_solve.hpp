@@ -100,7 +100,7 @@ namespace miniFE {
 				for (int i = 0; i < Anrecv_neighbors; ++i) {
 
 					// This creates task internally
-					ompss_memcpy_task(x_external, Arecv_ptr[i], Arecv_length[i]);
+					ompss_memcpy_task(x_external, Arecv_ptr[i], Arecv_length[i] * sizeof(double));
 
 					x_external += Arecv_length[i];
 
@@ -112,14 +112,8 @@ namespace miniFE {
 			}
 		}
 	}
-	
-	int myfunction(CSRMatrix *A_array)
-	{
-		return 3;
-	}
 
-
-	inline int breakdown(double inner, const Vector *v, const Vector *w)
+	int breakdown(double inner, const Vector *v, const Vector *w)
 	{
 		//This is code that was copied from Aztec, and originally written
 		//by my hero, Ray Tuminaro.
@@ -193,7 +187,6 @@ namespace miniFE {
 		}
 		//TOCK(tWAXPY[0]);
 
-		myfunction(A_array);
 		// This creates tasks internally
 		exchange_externals_all(A_array, p_array, numboxes);
 

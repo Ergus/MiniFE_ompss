@@ -40,14 +40,6 @@
 #include <ElemData.hpp>
 #include <mytimer.hpp>
 
-#ifdef MINIFE_HAVE_TBB
-#include <LockingMatrix.hpp>
-#endif
-
-#ifdef HAVE_MPI
-#include <mpi.h>
-#endif
-
 namespace miniFE
 {
 
@@ -480,8 +472,6 @@ namespace miniFE
 		}
 		#pragma oss taskwait
 	}
-
-	// TODO: pretty sure this is an out in y->coefs
 
 }//namespace miniFE
 

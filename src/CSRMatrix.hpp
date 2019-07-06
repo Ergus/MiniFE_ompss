@@ -43,7 +43,8 @@ namespace miniFE
 
 	class CSRMatrix {
 	public:
-		bool has_local_indices;
+		int id;
+		bool has_local_indices, is_copy;
 		int *rows;
 		int *row_offsets;
 		//int *row_offsets_external;
@@ -55,6 +56,8 @@ namespace miniFE
 		int first_row;
 		int num_cols;
 
+		// The send elements are not released here because they are in
+		// the singleton
 		int nrecv_neighbors;
 		int nexternals;
 		int *recv_neighbors;
@@ -70,8 +73,8 @@ namespace miniFE
 		double *send_buffer;
 
 		CSRMatrix()
-			: has_local_indices(false),
-			  rows(), row_offsets(nullptr), //row_offsets_external(),
+			: has_local_indices(false), is_copy(false),
+			  rows(nullptr), row_offsets(nullptr), //row_offsets_external(),
 			  global_nrows(-1), nrows(-1),
 			  nnz(0), packed_cols(nullptr), packed_coefs(nullptr),
 			  first_row(-1), num_cols(0),
@@ -82,31 +85,50 @@ namespace miniFE
 			  nsend_neighbors(0), send_neighbors(nullptr), send_length(nullptr),
 			  nelements_to_send(0), elements_to_send(nullptr), send_buffer(nullptr)
 
-		{
-		}
+		{}
+
+		CSRMatrix(const CSRMatrix &in)
+			: has_local_indices(in.has_local_indices),
+			  is_copy(true),
+			  rows(in.rows),
+			  row_offsets(in.row_offsets),
+			  global_nrows(in.global_nrows),
+			  nrows(in.nrows),
+			  nnz(in.nnz),
+			  packed_cols(in.packed_cols),
+			  packed_coefs(in.packed_coefs),
+			  first_row(in.first_row),
+			  num_cols(in.num_cols),
+
+			  nrecv_neighbors(in.nrecv_neighbors),
+			  nexternals(in.nexternals),
+			  recv_neighbors(in.recv_neighbors),
+			  recv_ptr(in.recv_ptr),
+			  recv_length(in.recv_length),
+			  external_index(in.external_index),
+
+			  nsend_neighbors(in.nsend_neighbors),
+			  send_neighbors(send_neighbors),
+			  send_length(in.send_length),
+			  nelements_to_send(in.nelements_to_send),
+			  elements_to_send(in.elements_to_send),
+			  send_buffer(in.send_buffer)
+
+		{}
 
 		~CSRMatrix()
 		{
-			// generate_matrix_structure
-			rrd_free(rows, nrows * sizeof(int));
-			rrd_free(row_offsets, (nrows + 1) * sizeof(int));
-			//rrd_free(row_offsets_external, (nrows + 1) * sizeof(int));
-			rrd_free(packed_cols, nnz * sizeof(int));
-			rrd_free(packed_coefs, nnz * sizeof(double));
+			if (!is_copy) {
+				// generate_matrix_structure
+				assert(nrows > 0);
+				rrd_free(rows, nrows * sizeof(int));
+				rrd_free(row_offsets, (nrows + 1) * sizeof(int));
 
-			// make_local_matrix
-			// Receive
-			rrd_free(recv_neighbors, nrecv_neighbors * sizeof(int));
-			rrd_free(recv_ptr, nrecv_neighbors * sizeof(double *));
-
-			rrd_free(recv_length, nrecv_neighbors * sizeof(int));
-			rrd_free(external_index, nexternals * sizeof(int));
-
-			// Send
-			rrd_free(send_neighbors, nsend_neighbors * sizeof(int));
-			rrd_free(send_length, nsend_neighbors * sizeof(int));
-			rrd_free(elements_to_send, nelements_to_send * sizeof(int));
-			rrd_free(send_buffer, nelements_to_send * sizeof(double));
+				//rrd_free(row_offsets_external, (nrows + 1) * sizeof(int));
+				assert(nnz > 0);
+				rrd_free(packed_cols, nnz * sizeof(int));
+				rrd_free(packed_coefs, nnz * sizeof(double));
+			}
 		}
 
 
@@ -218,28 +240,6 @@ namespace miniFE
 			miniFE::sum_into_row(row_len, mat_row_cols, mat_row_coefs, num_indices, col_inds, coefs);
 		}
 
-
-		void write(const std::string &filename, int id, int numboxes) const
-		{
-			std::ostringstream osstr;
-
-			std::string full_name = osstr.str();
-			std::ofstream ofs(full_name.c_str());
-
-			if (id == 0)
-				ofs << nrows << " " << nnz << std::endl;
-
-			for (size_t i = 0; i < nrows; ++i) {
-				size_t row_len = 0;
-				int *cols = NULL;
-				double *coefs = NULL;
-				get_row_pointers(rows[i], row_len, cols, coefs);
-
-				for (size_t j = 0; j < row_len; ++j)
-					ofs << rows[i] << " " << cols[j] << " " << coefs[j] << std::endl;
-
-			}
-		}
 	};
 
 
@@ -288,54 +288,86 @@ namespace miniFE
 	template <typename T>
 	void print_vector(std::string vname, size_t size,const  T *vect ,std::ostream &stream)
 	{
-		stream << vname << "["  << size << "]=";
+		stream << vname << "["  << size << "]={";
 		for (size_t i = 0; i < size; ++i) {
 			if (i > 0)
 				stream << "; ";
 
 			stream << vect[i];
 		}
-		stream << " ]\n";
+		stream << " }\n";
 	}
 
-	inline std::ostream& operator <<(std::ostream &stream, const CSRMatrix &in)
+	inline std::ostream& operator <<(std::ostream &stream, const CSRMatrix &Min)
 	{
-		stream << "has_local_indices" << "="<< in.has_local_indices << "\n";
-		stream << "global_nrows" << "="<< in.global_nrows << "\n";
-		stream << "nrows" << "="<< in.nrows << "\n";
-		stream << "nnz" << "="<< in.nnz << "\n";
-		stream << "first_row" << "="<< in.first_row << "\n";
-		stream << "num_cols" << "="<< in.num_cols << "\n";
-		stream << "nrecv_neighbors" << "="<< in.nrecv_neighbors << "\n";
-		stream << "nexternals" << "="<< in.nexternals << "\n";
-		stream << "nsend_neighbors" << "="<< in.nsend_neighbors << "\n";
-		stream << "nelements_to_send" << "="<< in.nelements_to_send << "\n";
+		CSRMatrix Mcopy(Min);
 
-		for (size_t i = 0; i < in.nrows; ++i) {
-			int *Acols = NULL;
-			double *Acoefs = NULL;
-			size_t row_len = 0;
-			in.get_row_pointers(in.rows[i], row_len, Acols, Acoefs);
+		#pragma oss task					\
+			in(Min)						\
+			in(Mcopy.rows[0; Mcopy.nrows])			\
+			in(Mcopy.row_offsets[0; Mcopy.nrows + 1])	\
+			in(Mcopy.packed_cols[0; Mcopy.nnz])		\
+			in(Mcopy.packed_coefs[0; Mcopy.nnz])		\
+			in(Mcopy.recv_neighbors[0; Mcopy.nrecv_neighbors]) \
+			in(Mcopy.recv_length[0; Mcopy.nrecv_neighbors])	\
+			in(Mcopy.external_index[0; Mcopy.nexternals])	\
+			in(Mcopy.send_neighbors[0; Mcopy.nsend_neighbors]) \
+			in(Mcopy.send_length[0; Mcopy.nsend_neighbors])	\
+			in(Mcopy.elements_to_send[0; Mcopy.nelements_to_send])
+		{
+			stream << "has_local_indices" << "="<< Min.has_local_indices << "\n";
+			stream << "global_nrows" << "="<< Min.global_nrows << "\n";
+			stream << "nrows" << "="<< Min.nrows << "\n";
+			stream << "nnz" << "="<< Min.nnz << "\n";
+			stream << "first_row" << "="<< Min.first_row << "\n";
+			stream << "num_cols" << "="<< Min.num_cols << "\n";
+			stream << "nrecv_neighbors" << "="<< Min.nrecv_neighbors << "\n";
+			stream << "nexternals" << "="<< Min.nexternals << "\n";
+			stream << "nsend_neighbors" << "="<< Min.nsend_neighbors << "\n";
+			stream << "nelements_to_send" << "="<< Min.nelements_to_send << "\n";
 
-			stream << i << ":" << in.rows[i] << ":" << in.row_offsets[i] << "=";
+			for (size_t i = 0; i < Min.nrows; ++i) {
+				int *Acols = NULL;
+				double *Acoefs = NULL;
+				size_t row_len = 0;
+				Min.get_row_pointers(Min.rows[i], row_len, Acols, Acoefs);
 
-			for (size_t j = 0; j < row_len; ++j) {
-				if (j > 0)
-					stream << "; ";
-				stream << "<" << Acols[j] << ";" << Acoefs[j] << ">";
+				stream << i << ":" << Min.rows[i] << ":" << Min.row_offsets[i] << "={";
+
+				for (size_t j = 0; j < row_len; ++j) {
+					if (j > 0)
+						stream << "; ";
+					stream << "<" << Acols[j] << ";" << Acoefs[j] << ">";
+				}
+				stream << "}\n";
 			}
-			stream << "]\n";
+
+			print_vector("recv_neighbors", Min.nrecv_neighbors, Min.recv_neighbors, stream);
+			print_vector("recv_length", Min.nrecv_neighbors, Min.recv_length, stream);
+			print_vector("externals", Min.nexternals, Min.external_index, stream);
+
+			print_vector("send_neighbors", Min.nsend_neighbors, Min.send_neighbors, stream);
+			print_vector("send_length", Min.nsend_neighbors, Min.send_length, stream);
+			print_vector("nelements_to_send", Min.nelements_to_send, Min.elements_to_send, stream);
+
+			return stream;
 		}
+	}
 
-		print_vector("recv_neighbors", in.nrecv_neighbors, in.recv_neighbors, stream);
-		print_vector("recv_length", in.nrecv_neighbors, in.recv_length, stream);
-		print_vector("externals", in.nexternals, in.external_index, stream);
+	// TODO: pretty sure this is an out in y->coefs
+	inline void write_all(std::string &filename, const CSRMatrix *A_array, size_t numboxes)
+	{
+		for (size_t id = 0; id < numboxes; ++id) {
 
-		print_vector("send_neighbors", in.nsend_neighbors, in.send_neighbors, stream);
-		print_vector("send_length", in.nsend_neighbors, in.send_length, stream);
-		print_vector("nelements_to_send", in.nelements_to_send, in.elements_to_send, stream);
+			std::ofstream myfile;
+			if (id == 0)
+				myfile.open(filename, std::ofstream::out);
+			else
+				myfile.open(filename, std::ofstream::app);
 
-		return stream;
+			myfile << A_array[id] << std::endl;
+			myfile.close();
+		}
 	}
 
 

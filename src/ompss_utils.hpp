@@ -24,6 +24,7 @@
 #include <cassert>
 #include <set>
 #include <map>
+#include <cstring>
 
 // General use macros Here
 #define REGISTER_ELAPSED_TIME(time_inc, time_total)			\
@@ -65,6 +66,7 @@ std::ostream &array_to_stream(const T *in, size_t size,
 		stream << in[i] << sep;
 	return stream;
 }
+
 
 
 #ifdef NANOS6 // ===============================================================
@@ -117,29 +119,16 @@ static inline void rrl_free(void *in, size_t size)
 	nanos6_lfree(in, size);
 }
 
-template<typename T>
-void copy_local_to_global_task(T *vout, const T *vin, size_t size)
+inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 {
-	const size_t nbytes = size * sizeof(T);
+	char *tin = (tin *) pin;
+	char *tout = (tin *) pout;
 
 	dbvprintf("Copy %ld bytes from %p -> %p\n", nbytes, vin, vout);
-	#pragma oss task			\
-		in(vin[0; size])		\
-		out(vout[0; size])
+	#pragma oss task in(pin[0; size]) out(pout[0; size])
 	{
-		memcpy(vout, vin, size * sizeof(T));
+		memcpy(tout, tin, size);
 	}
-}
-
-
-template<typename T>
-void ompss_memcpy_task(T *pout, const T *pin, size_t size)
-{
-	#pragma oss task			\
-		in(pin[0; size])		\
-		out(pout[0; size])
-	for (size_t i = 0; i < size; ++i)
-		pout[i] = pin[i];
 }
 
 template <typename T>
@@ -224,18 +213,9 @@ static inline void rrl_free(void *in, size_t size  __attribute__((unused)))
 	free(in);
 }
 
-template<typename T>
-void copy_local_to_global_task(T *vout, const T *vin, size_t size)
+inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 {
-	dbvprintf("Copy %ld bytes from %p -> %p\n", size, vin, vout);
-	memcpy(vout, vin, size * sizeof(T));
-}
-
-template<typename T>
-void ompss_memcpy_task(T *pout, const T *pin, size_t size)
-{
-	for (size_t i = 0; i < size; ++i)
-		pout[i] = pin[i];
+	memcpy(pout, pin, size);
 }
 
 template <typename T>

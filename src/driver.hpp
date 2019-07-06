@@ -35,37 +35,32 @@
 #include <sstream>
 #include <iomanip>
 
-#include <box_utils.hpp>
-#include <Vector.hpp>
+#include "box_utils.hpp"
+#include "Vector.hpp"
 
-#ifdef MINIFE_CSR_MATRIX
-#include <CSRMatrix.hpp>
-#elif defined(MINIFE_ELL_MATRIX)
-#include <ELLMatrix.hpp>
-#else
-#include <CSRMatrix.hpp>
-#endif
+#include "CSRMatrix.hpp"
 
-#include <simple_mesh_description.hpp>
+#include "simple_mesh_description.hpp"
 
-#include <SparseMatrix_functions.hpp>
+#include "SparseMatrix_functions.hpp"
 
-#include <generate_matrix_structure.hpp>
-#include <assemble_FE_data.hpp>
+#include "generate_matrix_structure.hpp"
+#include "assemble_FE_data.hpp"
 
-#include <verify_solution.hpp>
+#include "verify_solution.hpp"
 
-#include <compute_matrix_stats.hpp>
-#include <make_local_matrix.hpp>
-#include <imbalance.hpp>
-#include <cg_solve.hpp>
+#include "singleton.hpp"
+#include "compute_matrix_stats.hpp"
+#include "make_local_matrix.hpp"
+#include "imbalance.hpp"
+#include "cg_solve.hpp"
 #if MINIFE_KERNELS != 0
-#include <time_kernels.hpp>
+#include "time_kernels.hpp"
 #endif
-#include <outstream.hpp>
-#include <utils.hpp>
-#include <mytimer.hpp>
-#include <YAML_Doc.hpp>
+#include "outstream.hpp"
+#include "utils.hpp"
+#include "mytimer.hpp"
+#include "YAML_Doc.hpp"
 
 //This program assembles finite-element matrices into a global matrix and
 //vector, then solves the linear-system using Conjugate Gradients.
@@ -293,13 +288,15 @@ namespace miniFE
 		}
 		#endif
 
+		singleton sing(numboxes);
+
 		//Transform global indices to local, set up communication information:
 		{
 			std::cout << "making matrix indices local..." << std::endl;
 			timer_type make_local_time = mytimer();;
 
 			// TODO: weak task here
-			make_local_matrix(A_array, numboxes);
+			make_local_matrix(A_array, &sing, numboxes);
 			REGISTER_ELAPSED_TIME(make_local_time, t_total);
 		}
 
