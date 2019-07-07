@@ -156,7 +156,7 @@ namespace miniFE
 			//first see if we can get the local-row index using fast direct lookup:
 			if (nrows > 0) {
 				int idx = row - rows[0];
-				if (idx < nrows && rows[idx] == row)
+				if (idx < (int)nrows && rows[idx] == row)
 					local_row = idx;
 			}
 
@@ -195,7 +195,7 @@ namespace miniFE
 			miniFE::sum_into_row(row_len, mat_row_cols, mat_row_coefs, num_indices, col_inds, coefs);
 		}
 
-		void write(std::ofstream &stream) const
+		void write(std::ostream &stream) const
 		{
 			stream << "CSRMatrix: " << id << "\n";
 			stream << "has_local_indices" << "="<< has_local_indices << "\n";
@@ -237,21 +237,28 @@ namespace miniFE
 
 			#endif
 
-			stream.close();
 		}
 
 
-	};
+	}; // class CSRMatrix
 
 
 	#pragma oss task						\
-		inout(CSRMatrix A[0])					\
+		inout(A[0])						\
 		in(mesh[0])						\
 		in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])       // weak
 	void generate_matrix_structure_task(CSRMatrix *A,
 	                                    const simple_mesh_description *mesh,
+	                                    std::pair<int,int> *mesh_ompss2_ids_to_rows,
+	                                    size_t mesh_ids_to_rows_size,
 	                                    size_t _id)
 	{
+
+		#ifdef VERBOSE
+		std::string filename = "VERB_mesh_gen_mat_" + std::to_string(_id) + ".verb";
+		std::ofstream stream(filename);
+		mesh.write(filename);
+		#endif
 
 		int global_nodes[3] = {
 			mesh->global_box[0][1] + 1,
@@ -353,7 +360,7 @@ namespace miniFE
 		CSRMatrix Mcopy(Min);  // This is a work around for the dependency issue
 
 		#pragma oss task					\
-			in(Min)						\
+			in(Mcopy)						\
 			in(Mcopy.rows[0; Mcopy.nrows])			\
 			in(Mcopy.row_offsets[0; Mcopy.nrows + 1])	\
 			in(Mcopy.packed_cols[0; Mcopy.nnz])		\
@@ -373,19 +380,12 @@ namespace miniFE
 				stream.open(filename, std::ofstream::app);
 
 			Mcopy.write(stream);
+
+			stream.close();
 		}
 
 		#pragma oss taskwait
 	}
-
-	// TODO: pretty sure this is an out in y->coefs
-	inline void write_all(std::string &filename, const CSRMatrix *A_array, size_t numboxes)
-	{
-		for (size_t id = 0; id < numboxes; ++id) {
-			write_task(filename, A_array[id], id);
-		}
-	}
-
 
 }//namespace miniFE
 

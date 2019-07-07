@@ -40,13 +40,25 @@ namespace miniFE
 {
 	struct Vector {
 
-		Vector() : startIndex(-1), local_size(-1), coefs(nullptr)
+		Vector() : startIndex(-1),
+			   local_size(-1),
+			   coefs(nullptr),
+			   is_copy(false)
+		{
+		}
+
+		Vector(const Vector &in) :
+			is_copy(true),
+			startIndex(in.startIndex),
+			local_size(in.local_size),
+			coefs(in.coefs)
 		{
 		}
 
 		~Vector()
 		{
-			rrd_free(coefs, local_size * sizeof(double));
+			if (!is_copy)
+				rrd_free(coefs, local_size * sizeof(double));
 		}
 
 		// Arrays allocations (boxes can go in local memory)
@@ -74,6 +86,7 @@ namespace miniFE
 				coefs[i] = 0.;
 		}
 
+		bool is_copy;
 		int startIndex;
 		size_t local_size;
 		double *coefs;
@@ -92,15 +105,10 @@ namespace miniFE
 			}
 		}
 
-		void write(const std::string& filename, int id, size_t numboxes) const
+		void write(std::ostream &stream) const
 		{
-			std::ostringstream osstr;
-			osstr << filename << "." << numboxes << "." << id;
-			std::string full_name = osstr.str();
-			std::ofstream ofs(full_name.c_str());
-
-			for (size_t i = 0; i < local_size; ++i)
-				ofs << startIndex + i << " " << coefs[i] << std::endl;
+			stream << "Vector start= " << startIndex << "\n";
+			print_vector("", local_size, coefs, stream);
 		}
 
 	};
@@ -142,12 +150,33 @@ namespace miniFE
 	}
 
 
-	inline std::ostream& operator <<(std::ostream &stream, const Vector &in) {
-		stream << "[ ";
-		for (size_t i = 0; i < in.local_size; ++i)
-			stream << in.coefs[i] << "; ";
-		stream << "]"<< std::endl;
+	inline std::ostream& operator <<(std::ostream &stream, const Vector &in)
+	{
+		in.write(stream);
 		return stream;
+	}
+
+	inline void write_task(std::string filename, const Vector &Min, size_t id)
+	{
+		Vector Mcopy(Min);
+
+		#pragma oss task					\
+			in(Mcopy)						\
+			in(Mcopy.coefs[0; Mcopy.local_size])
+		{
+			std::ofstream stream;
+
+			if (id == 0)
+				stream.open(filename, std::ofstream::out);
+			else
+				stream.open(filename, std::ofstream::app);
+
+			Mcopy.write(stream);
+
+			stream.close();
+		}
+
+		#pragma oss taskwait
 	}
 
 

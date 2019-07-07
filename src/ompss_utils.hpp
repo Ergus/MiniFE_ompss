@@ -82,6 +82,20 @@ void print_vector(std::string vname, size_t size,const  T *vect ,std::ostream &s
 }
 
 
+template <typename _Key, typename _Tp>
+std::ostream& operator<< (std::ostream& os, const std::pair<_Key, _Tp> &in)
+{
+	os << pairToStr(in);
+	return os;
+}
+
+template <typename T>
+inline void write_all(std::string &filename, const T *in_array, size_t numboxes)
+{
+	for (size_t id = 0; id < numboxes; ++id)
+		write_task(filename, in_array[id], id);
+}
+
 
 #ifdef NANOS6 // ===============================================================
 

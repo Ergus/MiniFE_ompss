@@ -325,8 +325,8 @@ namespace miniFE
 	}
 
 
-
-	void init_row_task(const int *row_coords,
+	// TODO: make this a task 
+	void init_row(const int *row_coords,
 	              const int *global_nodes,
 	              int global_nrows,
 	              const simple_mesh_description *mesh,
@@ -380,24 +380,12 @@ namespace miniFE
 	{
 		for(int i = 0; i < nrows; ++i) {
 
-			const int offset = row_offsets[i];
-			const int next_offset = row_offsets[i + 1];
-
-			#pragma oss task				\
-				in(row_coords[3 * i; 3])		\
-				in(global_nodes[0; 3])			\
-				in(*mesh)				\
-				in(mesh->ompss2_ids_to_rows[0; mesh->ids_to_rows_size]) \
-				out(packed_cols[offset: next_offset - 1]) \
-				out(packed_coefs[offset: next_offset - 1])
-			{
-				init_row_task(&row_coords[3 * i],
-				              global_nodes,
-				              global_nrows,
-				              mesh,
-				              &packed_cols[offset],
-				              &packed_coefs[offset]);
-			}
+			init_row(&row_coords[3 * i],
+			         global_nodes,
+			         global_nrows,
+			         mesh,
+			         &packed_cols[row_offsets[i]],
+			         &packed_coefs[row_offsets[i]]);
 		}
 	}
 
@@ -409,7 +397,6 @@ namespace miniFE
 		in(global_nodes[0; 3])					\
 		in(mesh[0])						\
 		in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])	\
-		in(nrows)						\
 		out(nnz[0])						\
 		out(first_row[0])
 	void init_offsets_task(int *row_coords,

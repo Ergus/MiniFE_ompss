@@ -331,7 +331,7 @@ namespace miniFE
 		simple_mesh_description Mcopy(Min);  // This is a work around for the dependency issue
 
 		#pragma oss task					\
-			in(Min)						\
+			in(Mcopy)						\
 			in(Mcopy.ompss2_bc_rows_0[0; Mcopy.bc_rows_0_size]) \
 			in(Mcopy.ompss2_bc_rows_1[0; Mcopy.bc_rows_1_size]) \
 			in(Mcopy.ompss2_ids_to_rows[0; Mcopy.ids_to_rows_size])
@@ -344,18 +344,11 @@ namespace miniFE
 				stream.open(filename, std::ofstream::app);
 
 			Mcopy.write(stream);
+
+			stream.close();
 		}
 
 		#pragma oss taskwait
-	}
-
-	// TODO: pretty sure this is an out in y->coefs
-	inline void write_all(std::string &filename,
-	                      const simple_mesh_description *mesh_array,
-	                      size_t numboxes)
-	{
-		for (size_t id = 0; id < numboxes; ++id)
-			write_task(filename, mesh_array[id], id);
 	}
 
 }//namespace miniFE

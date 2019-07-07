@@ -140,15 +140,14 @@ namespace miniFE
 				mesh_array[i].init(global_box, local_boxes_array, \
 				                   local_node_box_array, i, numboxes);
 			}
+			#pragma oss taskwait
 		}
 
-		// TODO: Taskwait here
+
 		timer_type mesh_fill = mytimer() - t0;
 		timer_type t_total = mytimer() - t_start;
 
 		std::cout << mesh_fill << "s, total time: " << t_total << std::endl;
-
-		//next we will generate the matrix structure.
 
 		//Declare matrix object array
 		CSRMatrix *A_array = new CSRMatrix[numboxes];
@@ -157,18 +156,21 @@ namespace miniFE
 			timer_type gen_structure = mytimer();
 
 			for (size_t i = 0; i < numboxes; ++i) {
-				// This creates the tasks inside. It is not the task itself.
-				generate_matrix_structure_task(&A_array[i], &mesh_array[i], i);
+				generate_matrix_structure_task(&A_array[i],
+				                               &mesh_array[i],
+				                               mesh_array[i].ompss2_ids_to_rows,
+				                               mesh_array[i].ids_to_rows_size,
+				                               i);
 
 			}
 
+			#pragma oss taskwait
 			REGISTER_ELAPSED_TIME(gen_structure, t_total);
 
 			ydoc.add("Matrix structure generation","");
 			ydoc.get("Matrix structure generation")->add("Mat-struc-gen Time", gen_structure);
 		}
 
-		#pragma oss taskwait
 
 		// Declare vector objects array
 		Vector *b_array = new Vector[numboxes];

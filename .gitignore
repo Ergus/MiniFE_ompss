@@ -6,3 +6,4 @@ GTAGS
 *.yaml
 compile_commands.json
 *.mat
+miniFE_info.hpp
