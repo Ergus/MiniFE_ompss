@@ -41,8 +41,8 @@
 
 namespace miniFE {
 
-	#pragma oss task				   \
-		in(A_elements_to_send[0; A_nelements_to_send]) \
+	#pragma oss task					   \
+		in(A_elements_to_send[0; A_nelements_to_send])	   \
 		out(A_send_buffer[0; A_nelements_to_send])	   \
 		in(x_coefs[0; x_local_size])
 	void copy_to_send_task(
@@ -58,14 +58,41 @@ namespace miniFE {
 		}
 	}
 
-	void exchange_externals_all(CSRMatrix *A_array, Vector *x_array, size_t numboxes,
-	                            singleton &sing)
+	#pragma oss task						\
+		in(*A)							\
+		in(Arecv_ptr[0; Anrecv_neighbors])			\
+		in(Arecv_length[0; Anrecv_neighbors])			\
+		out(x_external[0; Anexternals])				\
+		weakin(global_send_buffer[0; global_nelements_to_send])
+	void copy_from_senders(
+		CSRMatrix *A,
+		double **Arecv_ptr,
+		int *Arecv_length,
+		int Anrecv_neighbors,
+		double *x_start,
+		int Anexternals,
+		double *global_send_buffer,
+		int global_nelements_to_send)
 	{
+		double *local_iter = x_start;
 
-		#ifdef MINIFE_DEBUG
-		std::ostream& os = outstream();
-		os << "entering exchange_externals\n";
-		#endif
+		for (int i = 0; i < Anrecv_neighbors; ++i) {
+
+			// This creates task internally
+			ompss_memcpy_task(local_iter, Arecv_ptr[i], Arecv_length[i] * sizeof(double));
+
+			local_iter += Arecv_length[i];
+
+			// boundary check
+			assert(local_iter - x_start <= Anexternals);
+		}
+
+	}
+
+
+	void exchange_externals_all(CSRMatrix *A_array, Vector *x_array, size_t numboxes,
+	                            const singleton *sing)
+	{
 
 		if (numboxes < 2)
 			return;
@@ -84,40 +111,18 @@ namespace miniFE {
 		}
 
 		for (size_t id = 0; id < numboxes; ++id) {
+
 			CSRMatrix *A = &A_array[id];
 			Vector *x = &x_array[id];
 
-			double **Arecv_ptr = A->recv_ptr;
-			int Anrecv_neighbors = A->nrecv_neighbors;
-			int *Arecv_length = A->recv_length;
-			int Anexternals = A->nexternals;
-			double *x_external = &(x->coefs[A->nrows]);
-
-			// TODO: Task here to copy locally, but then there is
-			// the problem inside.  I don't know the whole
-			// dependencies I'll need in advance.  in A (full) out
-			// x.coefs[A.nrows; A.nexternals]
-			#pragma oss task				\
-				in(*A)					\
-				in(Arecv_ptr[0; Anrecv_neighbors])	\
-		 		in(Arecv_length[0; Anrecv_neighbors])	\
-		 		out(x_external[0; Anexternals])
-			{
-				const double *x_start = x_external;
-
-				for (int i = 0; i < Anrecv_neighbors; ++i) {
-
-					// This creates task internally
-					ompss_memcpy_task(x_external, Arecv_ptr[i], Arecv_length[i] * sizeof(double));
-
-					x_external += Arecv_length[i];
-
-					// boundary check
-					assert(x_external - x_start <= Anexternals);
-				}
-				// Assert that we copied all the elements
-				//assert(index == A.nexternals);
-			}
+			copy_from_senders(A,
+			                  A->recv_ptr,
+			                  A->recv_length,
+			                  A->nrecv_neighbors,
+			                  &(x->coefs[A->nrows]),
+			                  A->nexternals,
+			                  sing->send_buffer,
+			                  sing->global_nelements_to_send);
 		}
 	}
 
@@ -151,7 +156,7 @@ namespace miniFE {
 	                  int &num_iters,
 	                  double &normr,
 	                  timer_type* my_cg_times,
-	                  singleton &sing)
+	                  const singleton *sing)
 	{
 
 		timer_type t0 = 0, tWAXPY[numboxes], tDOT[numboxes], tMATVEC[numboxes];

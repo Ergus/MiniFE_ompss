@@ -74,13 +74,13 @@ public:
 		rrl_free(nsend_neighbors, numboxes * sizeof(int));
 		rrl_free(nelements_to_send, numboxes * sizeof(int));
 
-		assert(global_nelements_to_send >= 0);
+		assert(global_nsend_neighbors >= 0);
 		rrd_free(send_neighbors, global_nsend_neighbors * sizeof(int));
 		rrd_free(send_length, global_nsend_neighbors * sizeof(int));
 
 		assert(global_nelements_to_send >= 0);
-		rrd_free(elements_to_send, global_nsend_neighbors * sizeof(int));
-		rrd_free(send_buffer, global_nsend_neighbors * sizeof(double));
+		rrd_free(elements_to_send, global_nelements_to_send * sizeof(int));
+		rrd_free(send_buffer, global_nelements_to_send * sizeof(double));
 	}
 
 
