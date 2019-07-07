@@ -31,16 +31,35 @@
 #include <cmath>
 #include <limits>
 
-#include <Vector_functions.hpp>
-#include <mytimer.hpp>
+#include "Vector_functions.hpp"
+#include "mytimer.hpp"
 
 #include "CSRMatrix.hpp"
-#include <outstream.hpp>
+#include "outstream.hpp"
+
+#include "singleton.hpp"
 
 namespace miniFE {
 
+	#pragma oss task				   \
+		in(A_elements_to_send[0; A_nelements_to_send]) \
+		out(A_send_buffer[0; A_nelements_to_send])	   \
+		in(x_coefs[0; x_local_size])
+	void copy_to_send_task(
+		int *A_elements_to_send,
+		double *A_send_buffer,
+		size_t A_nelements_to_send,
+		const double *x_coefs,
+		size_t x_local_size)
+	{
+		for (size_t i = 0; i < A_nelements_to_send; ++i) {
+			assert((size_t)A_elements_to_send[i] < x_local_size);
+			A_send_buffer[i] = x_coefs[A_elements_to_send[i]];
+		}
+	}
 
-	void exchange_externals_all(CSRMatrix *A_array, Vector *x_array, size_t numboxes)
+	void exchange_externals_all(CSRMatrix *A_array, Vector *x_array, size_t numboxes,
+	                            singleton &sing)
 	{
 
 		#ifdef MINIFE_DEBUG
@@ -56,23 +75,12 @@ namespace miniFE {
 			CSRMatrix *A = &A_array[id];
 			Vector *x = &x_array[id];
 
-			int *Aelements_to_send = A->elements_to_send;
-			double *Asend_buffer = A->send_buffer;
-			int Anelements_to_send = A->nelements_to_send;
-			double *xcoefs = x->coefs;
-			int xsize = x->local_size;
-			#pragma oss task				\
-		 		in(*A)					\
-		 		in(Aelements_to_send[0; Anelements_to_send]) \
-		 		out(Asend_buffer[0; Anelements_to_send]) \
-		 		in(*x)					\
-		 		in(x->coefs[0; xsize])
-			{
-				for (int i = 0; i < Anelements_to_send; ++i) {
-					assert(Aelements_to_send[i] < xsize);
-					Asend_buffer[i] = xcoefs[Aelements_to_send[i]];
-				}
-			}
+			copy_to_send_task(
+				A->elements_to_send,
+				A->send_buffer,
+				A->nelements_to_send,
+				x->coefs,
+				x->local_size);
 		}
 
 		for (size_t id = 0; id < numboxes; ++id) {
@@ -142,8 +150,10 @@ namespace miniFE {
 	                  const double tolerance,
 	                  int &num_iters,
 	                  double &normr,
-	                  timer_type* my_cg_times)
+	                  timer_type* my_cg_times,
+	                  singleton &sing)
 	{
+
 		timer_type t0 = 0, tWAXPY[numboxes], tDOT[numboxes], tMATVEC[numboxes];
 		timer_type total_time = mytimer();
 
@@ -188,7 +198,7 @@ namespace miniFE {
 		//TOCK(tWAXPY[0]);
 
 		// This creates tasks internally
-		exchange_externals_all(A_array, p_array, numboxes);
+		exchange_externals_all(A_array, p_array, numboxes, sing);
 
 		for (size_t i = 0; i < numboxes; ++i) {
 			// Tasks here
@@ -256,7 +266,7 @@ namespace miniFE {
 			double p_ap_dot_global = 0.0;
 
 			// This creates tasks internally
-			exchange_externals_all(A_array, p_array, numboxes);
+			exchange_externals_all(A_array, p_array, numboxes, sing);
 			for (size_t i = 0; i < numboxes; ++i) {
 				//TICK();
 				matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);

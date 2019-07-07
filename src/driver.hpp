@@ -321,7 +321,7 @@ namespace miniFE
 		std::cout << "Starting CG solver ... " << std::endl;
 
 		cg_solve_all(A_array, numboxes, b_array, x_array,
-		             max_iters, tol, num_iters, rnorm, cg_times);
+		             max_iters, tol, num_iters, rnorm, cg_times, sing);
 
 		std::cout << "Final Resid Norm: " << rnorm << std::endl;
 
