@@ -165,9 +165,7 @@ inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 template <typename T>
 void reduce_sum_task(T *vout, const T *vin, size_t size)
 {
-	#pragma oss task			\
-		in(vin[0; size])		\
-		out(*vout)
+	#pragma oss task in(vin[0; size]) out(*vout)
 	{
 		*vout = 0;
 		for (size_t i = 0; i < size; ++i)

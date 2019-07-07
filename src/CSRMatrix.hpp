@@ -444,8 +444,6 @@ namespace miniFE
 	}
 
 	#pragma oss task						\
-		in(*mesh)		 				\
-		in(mesh_ompss2_ids_to_rows[0; mesh_i_ids_to_rows_size])	\
 		inout(*A)						\
 		inout(A_rows[0; A_nrows])				\
 		inout(A_row_offsets[0; A_nrows + 1])			\

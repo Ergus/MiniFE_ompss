@@ -62,7 +62,7 @@ namespace miniFE {
 		in(*A)							\
 		in(Arecv_ptr[0; Anrecv_neighbors])			\
 		in(Arecv_length[0; Anrecv_neighbors])			\
-		out(x_external[0; Anexternals])				\
+		out(x_start[0; Anexternals])				\
 		weakin(global_send_buffer[0; global_nelements_to_send])
 	void copy_from_senders(
 		CSRMatrix *A,
@@ -199,6 +199,11 @@ namespace miniFE {
 
 			waxpby_task(1.0, &x_array[i], 0.0, &x_array[i], &p_array[i]);
 
+			#ifdef VERBOSE
+			std::string filename = "VERB_p_1_"  + std::to_string(i) + ".verb";
+			write_task(filename ,p_array, i);
+			#endif
+
 		}
 		//TOCK(tWAXPY[0]);
 
@@ -208,18 +213,25 @@ namespace miniFE {
 		for (size_t i = 0; i < numboxes; ++i) {
 			// Tasks here
 			// in A_array[i] (full)
-			TICK();
+			//TICK();
+			#ifdef VERBOSE
+			std::string filename1 = "VERB_p_2_"  + std::to_string(i) + ".verb";
+			write_task(filename1 ,p_array, i);
+			std::string filename2 = "VERB_A_2_"  + std::to_string(i) + ".verb";
+			write_task(filename1 ,A_array[i], i);
+			#endif
+
 			matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
-			TOCK(tMATVEC[i]);
+			//TOCK(tMATVEC[i]);
 
-			TICK();
+			//TICK();
 			waxpby_task(1.0, &b_array[i], -1.0, &Ap_array[i], &r_array[i]);
-			TOCK(tWAXPY[i]);
+			//TOCK(tWAXPY[i]);
 
 
-			TICK();
+			//TICK();
 			dot2_task(&r_array[i], &rtrans[i]);
-			TOCK(tDOT[i]);
+			//TOCK(tDOT[i]);
 		}
 
 		// TODO: taskwait here
