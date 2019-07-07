@@ -180,53 +180,6 @@ namespace miniFE
 			coefs = &packed_coefs[offset];
 		}
 
-		void generate_matrix_structure(const simple_mesh_description *mesh)
-		{
-
-			int global_nodes[3] = {
-				mesh->global_box[0][1] + 1,
-				mesh->global_box[1][1] + 1,
-				mesh->global_box[2][1] + 1 };
-
-			nrows = mesh->extended_box.get_num_ids();
-
-			//num-owned-nodes in each dimension is num-elems+1
-			//only if num-elems > 0 in that dimension *and*
-			//we are at the high end of the global range in that dimension:
-			global_nrows = global_nodes[0] * global_nodes[1] * global_nodes[2];
-
-			rows = (int *) rrd_malloc(nrows * sizeof(int));
-			row_offsets = (int *) rrd_malloc((nrows + 1) * sizeof(int));
-
-			int *row_coords = (int *) rrl_malloc(nrows * 3 * sizeof(int));
-
-			init_offsets_task(row_coords,
-			                  rows,
-			                  row_offsets,
-			                  global_nodes,
-			                  mesh,
-			                  global_nrows,
-			                  nrows,
-			                  nnz,
-			                  first_row);
-
-			packed_cols = (int *) rrd_malloc(nnz * sizeof(int));
-			packed_coefs = (double *) rrd_malloc(nnz * sizeof(double));
-
-			init_matrix_task(row_coords,
-			                 global_nodes,
-			                 global_nrows,
-			                 mesh,
-			                 row_offsets,
-			                 packed_cols,
-			                 packed_coefs,
-			                 nrows,
-			                 nnz);
-
-			// TODO: Taskwait here
-			rrl_free(row_coords, nrows * 3 * sizeof(int));
-
-		}
 
 
 		void sum_into_row(int row, size_t num_indices, int *col_inds, double *coefs)
@@ -242,7 +195,115 @@ namespace miniFE
 			miniFE::sum_into_row(row_len, mat_row_cols, mat_row_coefs, num_indices, col_inds, coefs);
 		}
 
+		void write(std::ofstream &stream) const
+		{
+			stream << "CSRMatrix: " << id << "\n";
+			stream << "has_local_indices" << "="<< has_local_indices << "\n";
+			stream << "global_nrows" << "="<< global_nrows << "\n";
+			stream << "nrows" << "="<< nrows << "\n";
+			stream << "nnz" << "="<< nnz << "\n";
+			stream << "first_row" << "="<< first_row << "\n";
+			stream << "num_cols" << "="<< num_cols << "\n";
+			stream << "nrecv_neighbors" << "="<< nrecv_neighbors << "\n";
+			stream << "nexternals" << "="<< nexternals << "\n";
+			stream << "nsend_neighbors" << "="<< nsend_neighbors << "\n";
+			stream << "nelements_to_send" << "="<< nelements_to_send << "\n";
+
+			#ifdef VERBOSE
+
+			for (size_t i = 0; i < nrows; ++i) {
+				int *Acols = NULL;
+				double *Acoefs = NULL;
+				size_t row_len = 0;
+				get_row_pointers(rows[i], row_len, Acols, Acoefs);
+
+				stream << i << ":" << rows[i] << ":" << row_offsets[i] << "={";
+
+				for (size_t j = 0; j < row_len; ++j) {
+					if (j > 0)
+						stream << "; ";
+					stream << "<" << Acols[j] << ";" << Acoefs[j] << ">";
+				}
+				stream << "}\n";
+			}
+
+			print_vector("recv_neighbors", nrecv_neighbors, recv_neighbors, stream);
+			print_vector("recv_length", nrecv_neighbors, recv_length, stream);
+			print_vector("externals", nexternals, external_index, stream);
+
+			print_vector("send_neighbors", nsend_neighbors, send_neighbors, stream);
+			print_vector("send_length", nsend_neighbors, send_length, stream);
+			print_vector("nelements_to_send", nelements_to_send, elements_to_send, stream);
+
+			#endif
+
+			stream.close();
+		}
+
+
 	};
+
+
+	#pragma oss task						\
+		inout(CSRMatrix A[0])					\
+		in(mesh[0])						\
+		in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])       // weak
+	void generate_matrix_structure_task(CSRMatrix *A,
+	                                    const simple_mesh_description *mesh,
+	                                    size_t _id)
+	{
+
+		int global_nodes[3] = {
+			mesh->global_box[0][1] + 1,
+			mesh->global_box[1][1] + 1,
+			mesh->global_box[2][1] + 1 };
+
+		A->id = _id;
+		A->nrows = mesh->extended_box.get_num_ids();
+
+		//num-owned-nodes in each dimension is num-elems+1
+		//only if num-elems > 0 in that dimension *and*
+		//we are at the high end of the global range in that dimension:
+		A->global_nrows = global_nodes[0] * global_nodes[1] * global_nodes[2];
+
+		A->rows = (int *) rrd_malloc(A->nrows * sizeof(int));
+		A->row_offsets = (int *) rrd_malloc((A->nrows + 1) * sizeof(int));
+
+		int *row_coords = (int *) rrl_malloc(A->nrows * 3 * sizeof(int));
+
+		init_offsets_task(row_coords,
+		                  A->rows,
+		                  A->row_offsets,
+		                  global_nodes,
+		                  mesh,
+		                  mesh->ompss2_ids_to_rows,
+		                  mesh->ids_to_rows_size,
+		                  A->global_nrows,
+		                  A->nrows,
+		                  &(A->nnz),
+		                  &(A->first_row));
+
+
+		#pragma oss taskwait
+		A->packed_cols = (int *) rrd_malloc(A->nnz * sizeof(int));
+		A->packed_coefs = (double *) rrd_malloc(A->nnz * sizeof(double));
+
+		init_matrix_task(row_coords,
+		                 global_nodes,
+		                 A->global_nrows,
+		                 mesh,
+		                 mesh->ompss2_ids_to_rows,
+		                 mesh->ids_to_rows_size,
+		                 A->row_offsets,
+		                 A->packed_cols,
+		                 A->packed_coefs,
+		                 A->nrows,
+		                 A->nnz);
+
+		// TODO: Taskwait here
+		rrl_free(row_coords, A->nrows * 3 * sizeof(int));
+
+	}
 
 
 	void matvec_task(const CSRMatrix *A, const Vector *x, Vector *y)
@@ -287,20 +348,6 @@ namespace miniFE
 		}
 	}
 
-	template <typename T>
-	void print_vector(std::string vname, size_t size,const  T *vect ,std::ostream &stream)
-	{
-		stream << vname << "["  << size << "]={";
-		for (size_t i = 0; i < size; ++i) {
-			if (i > 0)
-				stream << "; ";
-
-			stream << vect[i];
-		}
-		stream << " }\n";
-	}
-
-
 	inline void write_task(std::string filename, const CSRMatrix &Min, size_t id)
 	{
 		CSRMatrix Mcopy(Min);  // This is a work around for the dependency issue
@@ -325,58 +372,17 @@ namespace miniFE
 			else
 				stream.open(filename, std::ofstream::app);
 
-			stream << "has_local_indices" << "="<< Min.has_local_indices << "\n";
-			stream << "global_nrows" << "="<< Min.global_nrows << "\n";
-			stream << "nrows" << "="<< Min.nrows << "\n";
-			stream << "nnz" << "="<< Min.nnz << "\n";
-			stream << "first_row" << "="<< Min.first_row << "\n";
-			stream << "num_cols" << "="<< Min.num_cols << "\n";
-			stream << "nrecv_neighbors" << "="<< Min.nrecv_neighbors << "\n";
-			stream << "nexternals" << "="<< Min.nexternals << "\n";
-			stream << "nsend_neighbors" << "="<< Min.nsend_neighbors << "\n";
-			stream << "nelements_to_send" << "="<< Min.nelements_to_send << "\n";
-
-
-			#ifdef VERBOSE
-
-			for (size_t i = 0; i < Min.nrows; ++i) {
-				int *Acols = NULL;
-				double *Acoefs = NULL;
-				size_t row_len = 0;
-				Min.get_row_pointers(Min.rows[i], row_len, Acols, Acoefs);
-
-				stream << i << ":" << Min.rows[i] << ":" << Min.row_offsets[i] << "={";
-
-				for (size_t j = 0; j < row_len; ++j) {
-					if (j > 0)
-						stream << "; ";
-					stream << "<" << Acols[j] << ";" << Acoefs[j] << ">";
-				}
-				stream << "}\n";
-			}
-
-			print_vector("recv_neighbors", Min.nrecv_neighbors, Min.recv_neighbors, stream);
-			print_vector("recv_length", Min.nrecv_neighbors, Min.recv_length, stream);
-			print_vector("externals", Min.nexternals, Min.external_index, stream);
-
-			print_vector("send_neighbors", Min.nsend_neighbors, Min.send_neighbors, stream);
-			print_vector("send_length", Min.nsend_neighbors, Min.send_length, stream);
-			print_vector("nelements_to_send", Min.nelements_to_send, Min.elements_to_send, stream);
-
-			#endif
-
-			stream.close();
+			Mcopy.write(stream);
 		}
+
+		#pragma oss taskwait
 	}
 
 	// TODO: pretty sure this is an out in y->coefs
 	inline void write_all(std::string &filename, const CSRMatrix *A_array, size_t numboxes)
 	{
 		for (size_t id = 0; id < numboxes; ++id) {
-
-
 			write_task(filename, A_array[id], id);
-			#pragma oss taskwait
 		}
 	}
 

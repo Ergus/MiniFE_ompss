@@ -358,120 +358,118 @@ namespace miniFE
 		sort_if_needed(packed_cols, idx);
 	}
 
-	// TODO: make this weak when all works
+	// TODO: make all this weak when things works
+	#pragma oss task						\
+		in(row_coords[0; 3 * nrows])				\
+		in(global_nodes[0; 3])					\
+		in(*mesh)						\
+		in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])	\
+		in(row_offsets[0; nrows + 1])				\
+		out(packed_cols[0; nnz])				\
+		out(packed_coefs[0; nnz])
 	void init_matrix_task(const int *row_coords,
-		const int *global_nodes,
-		int global_nrows,
-		const simple_mesh_description *mesh,
-		const int *row_offsets,
-		int *packed_cols,
-		double *packed_coefs,
-		int nrows, int nnz)
+	                      const int *global_nodes,
+	                      int global_nrows,
+	                      const simple_mesh_description *mesh,
+	                      const std::pair<int,int> *mesh_ompss2_ids_to_rows,
+	                      size_t mesh_ids_to_rows_size,
+	                      const int *row_offsets,
+	                      int *packed_cols,
+	                      double *packed_coefs,
+	                      int nrows, int nnz)
 	{
-		#pragma oss task			\
-			in(row_coords[0; 3 * nrows])	\
-			in(global_nodes[0; 3])		\
-			in(*mesh)			\
-			in(mesh->ompss2_ids_to_rows[0; mesh->ids_to_rows_size]) \
-			in(row_offsets[0; nrows + 1])	\
-			out(packed_cols[0; nnz])	\
-			out(packed_coefs[0; nnz])
-		{
-			for(int i = 0; i < nrows; ++i) {
+		for(int i = 0; i < nrows; ++i) {
 
-				const int offset = row_offsets[i];
-				const int next_offset = row_offsets[i + 1];
+			const int offset = row_offsets[i];
+			const int next_offset = row_offsets[i + 1];
 
-				#pragma oss task			\
-					in(row_coords[3 * i; 3])	\
-					in(global_nodes[0; 3])		\
-					in(*mesh)			\
-					in(mesh->ompss2_ids_to_rows[0; mesh->ids_to_rows_size]) \
-					out(packed_cols[offset: next_offset - 1]) \
-					out(packed_coefs[offset: next_offset - 1])
-				{
-					init_row_task(&row_coords[3 * i],
-					              global_nodes,
-					              global_nrows,
-					              mesh,
-					              &packed_cols[offset],
-					              &packed_coefs[offset]);
-				}
+			#pragma oss task				\
+				in(row_coords[3 * i; 3])		\
+				in(global_nodes[0; 3])			\
+				in(*mesh)				\
+				in(mesh->ompss2_ids_to_rows[0; mesh->ids_to_rows_size]) \
+				out(packed_cols[offset: next_offset - 1]) \
+				out(packed_coefs[offset: next_offset - 1])
+			{
+				init_row_task(&row_coords[3 * i],
+				              global_nodes,
+				              global_nrows,
+				              mesh,
+				              &packed_cols[offset],
+				              &packed_coefs[offset]);
 			}
 		}
 	}
 
 
+	#pragma oss task						\
+		out(row_coords[0; nrows * 3])				\
+		out(rows[0; nrows])					\
+		out(row_offsets[0; nrows + 1])				\
+		in(global_nodes[0; 3])					\
+		in(mesh[0])						\
+		in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])	\
+		in(nrows)						\
+		out(nnz[0])						\
+		out(first_row[0])
 	void init_offsets_task(int *row_coords,
 	                       int *rows,
 	                       int *row_offsets,
 	                       int *global_nodes,
 	                       const simple_mesh_description *mesh,
+	                       const std::pair<int,int> *mesh_ompss2_ids_to_rows,
+	                       size_t mesh_ids_to_rows_size,
 	                       size_t global_nrows,
 	                       size_t nrows,
-	                       size_t &nnz,
-	                       int &first_row)
+	                       size_t *nnz,
+	                       int *first_row)
 	{
-		#pragma oss task \
-			out(row_coords[0; nrows * 3])			\
-			out(rows[0; nrows])				\
-			out(row_offsets[0; nrows + 1])			\
-			in(global_nodes[0; 3])				\
-			in(mesh[0])					\
-			in(mesh[0].ompss2_bc_rows_0[0; mesh[0].bc_rows_0_size]) \
-			in(mesh[0].ompss2_bc_rows_1[0; mesh[0].bc_rows_1_size]) \
-			in(mesh[0].ompss2_ids_to_rows[0; mesh[0].ids_to_rows_size]) \
-			in(nrows)					\
-			out(nnz)					\
-			out(first_row)
+		const Box &box = mesh->extended_box;
+		size_t tnnz = 0;
+		size_t roffset = 0;
 
-		{
-			const Box &box = mesh->extended_box;
-			size_t tnnz = 0;
-			size_t roffset = 0;
+		for(int iz = box[2][0]; iz < box[2][1]; ++iz) {
+			for(int iy = box[1][0]; iy < box[1][1]; ++iy) {
+				for(int ix = box[0][0]; ix < box[0][1]; ++ix) {
+					const int row_id =
+						get_id(global_nodes[0],
+						       global_nodes[1],
+						       global_nodes[2],
+						       ix, iy, iz);
 
-			for(int iz = box[2][0]; iz < box[2][1]; ++iz) {
-				for(int iy = box[1][0]; iy < box[1][1]; ++iy) {
-					for(int ix = box[0][0]; ix < box[0][1]; ++ix) {
-						const int row_id =
-							get_id(global_nodes[0],
-							       global_nodes[1],
-							       global_nodes[2],
-							       ix, iy, iz);
+					rows[roffset] = mesh->map_id_to_row(row_id);
+					row_coords[roffset * 3] = ix;
+					row_coords[roffset * 3 + 1] = iy;
+					row_coords[roffset * 3 + 2] = iz;
+					row_offsets[roffset++] = tnnz;
 
-						rows[roffset] = mesh->map_id_to_row(row_id);
-						row_coords[roffset * 3] = ix;
-						row_coords[roffset * 3 + 1] = iy;
-						row_coords[roffset * 3 + 2] = iz;
-						row_offsets[roffset++] = tnnz;
-
-						for(int sz = -1; sz <= 1; ++sz) {
-							for(int sy = -1; sy <= 1; ++sy) {
-								for(int sx = -1; sx <= 1; ++sx) {
-									const size_t col_id =
-										get_id(global_nodes[0],
-										       global_nodes[1],
-										       global_nodes[2],
-										       ix + sx,
-										       iy + sy,
-										       iz + sz);
-									if (col_id >= 0 &&
-									    col_id < global_nrows)
-										++tnnz;
-								}
+					for(int sz = -1; sz <= 1; ++sz) {
+						for(int sy = -1; sy <= 1; ++sy) {
+							for(int sx = -1; sx <= 1; ++sx) {
+								const size_t col_id =
+									get_id(global_nodes[0],
+									       global_nodes[1],
+									       global_nodes[2],
+									       ix + sx,
+									       iy + sy,
+									       iz + sz);
+								if (col_id >= 0 &&
+								    col_id < global_nrows)
+									++tnnz;
 							}
 						}
 					}
 				}
 			}
-			row_offsets[nrows] = tnnz;
-			nnz = tnnz;
-			first_row = rows[0];
-			assert(roffset == nrows);
-
 		}
-		#pragma oss taskwait
+		row_offsets[nrows] = tnnz;
+		*nnz = tnnz;
+		*first_row = rows[0];
+		assert(roffset == nrows);
 	}
+
+
+
 }//namespace miniFE
 
 #endif

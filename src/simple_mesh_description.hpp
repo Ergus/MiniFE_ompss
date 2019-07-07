@@ -42,16 +42,29 @@ namespace miniFE
 	class simple_mesh_description {
 	public:
 		simple_mesh_description():
+			id(-1), is_copy(false),
 			ompss2_bc_rows_0(nullptr), ompss2_bc_rows_1(nullptr),
 			bc_rows_0_size(0), bc_rows_1_size(0),
 			ompss2_ids_to_rows(nullptr), ids_to_rows_size(0)
 		{}
 
+		simple_mesh_description(const simple_mesh_description &in):
+			id(in.id), is_copy(true),
+			ompss2_bc_rows_0(in.ompss2_bc_rows_0),
+			ompss2_bc_rows_1(in.ompss2_bc_rows_1),
+			bc_rows_0_size(in.bc_rows_0_size),
+			bc_rows_1_size(in.bc_rows_1_size),
+			ompss2_ids_to_rows(in.ompss2_ids_to_rows),
+			ids_to_rows_size(in.ids_to_rows_size)
+		{}
+
 		~simple_mesh_description()
 		{
-			rrd_free(ompss2_bc_rows_0, bc_rows_0_size * sizeof(int));
-			rrd_free(ompss2_bc_rows_1, bc_rows_1_size * sizeof(int));
-			rrd_free(ompss2_ids_to_rows, ids_to_rows_size * sizeof(int));
+			if (!is_copy) {
+				rrd_free(ompss2_bc_rows_0, bc_rows_0_size * sizeof(int));
+				rrd_free(ompss2_bc_rows_1, bc_rows_1_size * sizeof(int));
+				rrd_free(ompss2_ids_to_rows, ids_to_rows_size * sizeof(int));
+			}
 
 		}
 
@@ -73,9 +86,11 @@ namespace miniFE
 		void init(const Box &global_box_in,
 		          const Box *local_boxes_array,    // Global boxes
 		          const Box *local_node_box_array, // Boxes resized
-		          size_t id, size_t total)
+		          size_t _id, size_t total)
 		{
-			assert(id < total);
+			assert(_id < total);
+
+			id = _id;
 
 			// Internal class copies of the boxes
 			global_box = global_box_in;
@@ -281,6 +296,23 @@ namespace miniFE
 			                       &ompss2_ids_to_rows[ids_to_rows_size]);
 		}
 
+		void write(std::ofstream &stream) const
+		{
+			stream << "mesh: " << id << "\n";
+			stream << "global_box: " <<  global_box << "\n";
+			stream << "local_box: " << local_box << "\n";
+			stream << "extended_box: " << extended_box << "\n";
+
+			#ifdef VERBOSE
+			print_vector("bc_rows_0", bc_rows_0_size, ompss2_bc_rows_0, stream);
+			print_vector("bc_rows_1", bc_rows_1_size, ompss2_bc_rows_1, stream);
+			print_vector("ids_to_rows", ids_to_rows_size, ompss2_ids_to_rows, stream);
+			#endif
+		}
+
+		int id;
+		bool is_copy;
+
 		int *ompss2_bc_rows_0;
 		int *ompss2_bc_rows_1;
 		size_t bc_rows_0_size, bc_rows_1_size;
@@ -292,6 +324,39 @@ namespace miniFE
 		Box local_box;
 		Box extended_box;
 	}; //class simple_mesh_description
+
+
+	inline void write_task(std::string filename, const simple_mesh_description &Min, size_t id)
+	{
+		simple_mesh_description Mcopy(Min);  // This is a work around for the dependency issue
+
+		#pragma oss task					\
+			in(Min)						\
+			in(Mcopy.ompss2_bc_rows_0[0; Mcopy.bc_rows_0_size]) \
+			in(Mcopy.ompss2_bc_rows_1[0; Mcopy.bc_rows_1_size]) \
+			in(Mcopy.ompss2_ids_to_rows[0; Mcopy.ids_to_rows_size])
+		{
+			std::ofstream stream;
+
+			if (id == 0)
+				stream.open(filename, std::ofstream::out);
+			else
+				stream.open(filename, std::ofstream::app);
+
+			Mcopy.write(stream);
+		}
+
+		#pragma oss taskwait
+	}
+
+	// TODO: pretty sure this is an out in y->coefs
+	inline void write_all(std::string &filename,
+	                      const simple_mesh_description *mesh_array,
+	                      size_t numboxes)
+	{
+		for (size_t id = 0; id < numboxes; ++id)
+			write_task(filename, mesh_array[id], id);
+	}
 
 }//namespace miniFE
 

@@ -44,7 +44,6 @@
 
 #include "SparseMatrix_functions.hpp"
 
-#include "generate_matrix_structure.hpp"
 #include "assemble_FE_data.hpp"
 
 #include "verify_solution.hpp"
@@ -132,10 +131,11 @@ namespace miniFE
 		simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
 
 		for (size_t i = 0; i < numboxes; ++i) {
-			#pragma oss task in(global_box)			\
+			#pragma oss task				\
+				inout (mesh_array[i])			\
+				in(global_box)				\
 				in(local_boxes_array[0; numboxes])	\
-				in(local_node_box_array[0; numboxes])	\
-				inout (mesh_array[i])
+				in(local_node_box_array[0; numboxes])
 			{
 				mesh_array[i].init(global_box, local_boxes_array, \
 				                   local_node_box_array, i, numboxes);
@@ -157,19 +157,10 @@ namespace miniFE
 			timer_type gen_structure = mytimer();
 
 			for (size_t i = 0; i < numboxes; ++i) {
-				CSRMatrix *A_i = &A_array[i];
-				simple_mesh_description *mesh_i = &mesh_array[i];
+				// This creates the tasks inside. It is not the task itself.
+				generate_matrix_structure_task(&A_array[i], &mesh_array[i], i);
 
-				// TODO: the bc arrays dependencies are probably not needed.
-				#pragma oss task			\
-					in(*mesh_i)			\
-					in(mesh_i->ompss2_ids_to_rows[0; mesh_i->ids_to_rows_size]) \
-					inout(*A_i)
-				{
-					A_i->generate_matrix_structure(mesh_i);   // TODO: Tasks here
-				}
 			}
-			
 
 			REGISTER_ELAPSED_TIME(gen_structure, t_total);
 
