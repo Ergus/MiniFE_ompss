@@ -78,7 +78,7 @@ std::ostream &array_to_stream(const T *in, size_t size,
 static inline void *rrd_malloc(size_t size)
 {
 	void *ret = nanos6_dmalloc(size, nanos6_equpart_distribution, 1, NULL);
-	assert(ret != NULL);
+	assert(size == 0 || ret != NULL);
 	dbvprintf("Using nanos6_dmalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 
@@ -88,14 +88,15 @@ static inline void *rrd_malloc(size_t size)
 static inline void rrd_free(void *in, size_t size)
 {
 	dbvprintf("Using nanos6_dfree(%p)\n", in);
-	nanos6_dfree(in, size);
+	if (in)
+		nanos6_dfree(in, size);
 }
 
 // Local Memory
 static inline void *rrl_malloc(size_t size)
 {
 	void *ret = nanos6_lmalloc(size);
-	assert(ret != NULL);
+	assert(size == 0 || ret != NULL);
 	dbvprintf("Using nanos6_lmalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 
@@ -105,8 +106,10 @@ static inline void *rrl_malloc(size_t size)
 static inline void *rrl_calloc(size_t nmemb, size_t size)
 {
 	const int bytes = nmemb * size;
-
 	void *ret = rrl_malloc(bytes);
+	assert(size == 0 || ret != NULL);
+	dbvprintf("Using nanos6_lmalloc (calloc) [%p -> %p] size %ld\n",
+		 ret, (char*)ret + size, size);
 	memset(ret, 0, bytes);
 
 	return ret;
@@ -116,16 +119,17 @@ static inline void *rrl_calloc(size_t nmemb, size_t size)
 static inline void rrl_free(void *in, size_t size)
 {
 	dbvprintf("Using nanos6_lfree(%p)\n", in);
-	nanos6_lfree(in, size);
+	if (in)
+		nanos6_lfree(in, size);
 }
 
 inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 {
-	char *tin = (tin *) pin;
-	char *tout = (tin *) pout;
+	char *tin = (char *) pin;
+	char *tout = (char *) pout;
 
 	dbvprintf("Copy %ld bytes from %p -> %p\n", nbytes, vin, vout);
-	#pragma oss task in(pin[0; size]) out(pout[0; size])
+	#pragma oss task in(tin[0; size]) out(tout[0; size])
 	{
 		memcpy(tout, tin, size);
 	}
@@ -140,7 +144,7 @@ void reduce_sum_task(T *vout, const T *vin, size_t size)
 	{
 		*vout = 0;
 		for (size_t i = 0; i < size; ++i)
-			*vout += in[i];
+			*vout += vin[i];
 	}
 }
 
@@ -174,7 +178,6 @@ size_t stl_to_global_task(T **vout, const Container &vin)
 static inline void *rrd_malloc(size_t size)
 {
 	void *ret = malloc(size);
-	assert(ret != NULL);
 	dbvprintf("Using libc dmalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 
@@ -190,7 +193,7 @@ static inline void rrd_free(void *in, size_t size  __attribute__((unused)))
 static inline void *rrl_malloc(size_t size)
 {
 	void *ret = malloc(size);
-	assert(ret != NULL);
+	assert(size == 0 || ret != NULL);
 	dbvprintf("Using libc lmalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 
@@ -200,7 +203,7 @@ static inline void *rrl_malloc(size_t size)
 static inline void *rrl_calloc(size_t nmemb, size_t size)
 {
 	void *ret = calloc(nmemb, size);
-	assert(ret != NULL);
+	assert(size == 0 || ret != NULL);
 	dbvprintf("Using libc lcalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 

@@ -30,6 +30,7 @@
 //@HEADER
 
 #include <utils.hpp>
+#include <cstdio>
 
 #include "ompss_utils.hpp"
 
@@ -122,11 +123,10 @@ namespace miniFE
 					for(int iy = miny; iy < maxy; ++iy) {
 						const int nodeID = get_id(max_node_x, max_node_y, max_node_z,
 						                          0, iy, iz);
-						#ifndef NDEBUG
-						std::cout << "x = 0 BC, node " << nodeID
-						          << ", (0," << iy << "," << iz << ")"
-						          << std::endl;
-						#endif
+
+						dbvprintf("x = 0 BC, node %d, (%d, %d, %d)\n",
+						          nodeID, 0, iy, iz);
+
 						bc_rows_0.insert(find_row_for_id(nodeID, map_ids_to_rows));
 					}
 				}
@@ -148,18 +148,16 @@ namespace miniFE
 					for(int ix=minx; ix<maxx; ++ix) {
 						int nodeID = get_id(max_node_x, max_node_y, max_node_z,
 						                    ix, 0, iz);
-						#ifndef NDEBUG
-						std::cout << "y=0 BC, node " << nodeID
-						          << ", (" << ix << ",0," << iz << ")"
-						          << std::endl;
-						#endif
+						dbvprintf("y = 0 BC, node %d, (%d, %d, %d)\n",
+						          nodeID, ix, 0, iz);
+
 						int row = find_row_for_id(nodeID, map_ids_to_rows);
 
 						if (row < 0)
-							std::cout<< "on the y==0 face (ix="<<ix
-							         <<", iz="<<iz<<") "
-							         << "ERROR: found negative row (" <<row
-							         <<") for nodeID=" << nodeID <<std::endl;
+							fprintf(stderr,
+							        "on the y==0 face (ix=%d, iz=%d) \n"
+							        "ERROR: found negative row (%d) for nodeID=%d\n",
+							        ix, iz, row, nodeID);
 
 						bc_rows_0.insert(row);
 					}
@@ -182,11 +180,9 @@ namespace miniFE
 					for(int ix = minx; ix < maxx; ++ix) {
 						int nodeID = get_id(max_node_x, max_node_y, max_node_z,
 							            ix, iy, 0);
-						#ifndef NDEBUG
-						std::cout << "z = 0 BC, node " << nodeID
-						          << ", (" << ix << "," << iy << ",0)"
-						          << std::endl;
-						#endif
+						dbvprintf("z = 0 BC, node %d, (%d, %d, %d)\n",
+						          nodeID, ix, iy, 0);
+
 						bc_rows_0.insert(find_row_for_id(nodeID, map_ids_to_rows));
 					}
 				}
@@ -209,12 +205,10 @@ namespace miniFE
 						int nodeID = get_id(max_node_x, max_node_y, max_node_z,
 							            x1, iy, iz);
 						int row = find_row_for_id(nodeID, map_ids_to_rows);
-						#ifndef NDEBUG
-						std::cout << "x=1 BC, node " << nodeID
-						          << ", row " << row
-						          <<", ("<<x1<<","<<iy<<","<<iz<<")"
-						          << std::endl;
-						#endif
+
+						dbvprintf("x = 1 BC, node %d, row %d, (%d, %d, %d)\n",
+						          nodeID, row, x1, iy, iz);
+
 						bc_rows_1.insert(row);
 					}
 				}
@@ -236,11 +230,10 @@ namespace miniFE
 					for(int iz=minz; iz<maxz; ++iz) {
 						int nodeID = get_id(max_node_x, max_node_y, max_node_z,
 						                         ix, y1, iz);
-						#ifndef NDEBUG
-						std::cout << "y=1 BC, node " << nodeID
-						          << ", (" << ix << "," << y1 << "," << iz << ")"
-						          << std::endl;
-						#endif
+
+						dbvprintf("y = 1 BC, node %d, (%d, %d, %d)\n",
+						          nodeID, row, ix, y1, iz);
+
 						bc_rows_0.insert(find_row_for_id(nodeID, map_ids_to_rows));
 					}
 				}
@@ -263,11 +256,10 @@ namespace miniFE
 						int nodeID =
 							get_id(max_node_x, max_node_y, max_node_z,
 							       ix, iy, z1);
-						#ifndef NDEBUG
-						std::cout << "z=1 BC, node " << nodeID
-						          << ", (" << ix << "," << iy << "," << z1 << ")"
-						          << std::endl;
-						#endif
+
+						dbvprintf("z = 1 BC, node %d, (%d, %d, %d)\n",
+						          nodeID, row, ix, iy, z1);
+
 						bc_rows_0.insert(find_row_for_id(nodeID, map_ids_to_rows));
 					}
 				}

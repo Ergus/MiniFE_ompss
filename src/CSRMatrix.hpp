@@ -336,6 +336,9 @@ namespace miniFE
 			stream << "nsend_neighbors" << "="<< Min.nsend_neighbors << "\n";
 			stream << "nelements_to_send" << "="<< Min.nelements_to_send << "\n";
 
+
+			#ifdef VERBOSE
+
 			for (size_t i = 0; i < Min.nrows; ++i) {
 				int *Acols = NULL;
 				double *Acoefs = NULL;
@@ -359,6 +362,8 @@ namespace miniFE
 			print_vector("send_neighbors", Min.nsend_neighbors, Min.send_neighbors, stream);
 			print_vector("send_length", Min.nsend_neighbors, Min.send_length, stream);
 			print_vector("nelements_to_send", Min.nelements_to_send, Min.elements_to_send, stream);
+
+			#endif
 
 			stream.close();
 		}

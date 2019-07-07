@@ -290,18 +290,19 @@ namespace miniFE {
 				#pragma oss taskwait
 
 				if (p_ap_dot_global < 0 || breakdown_global) {
-					std::cerr << "miniFE::cg_solve ERROR, numerical breakdown!"
-					          << std::endl;
-					#ifdef MINIFE_DEBUG
-					os << "ERROR, numerical breakdown!"<<std::endl;
-					#endif
+
+					fprintf(stderr, "miniFE::cg_solve ERROR, numerical breakdown!\n");
+
+					dbprintf("ERROR: p_ap_dot_global = %lf && breakdown_global = %d\n",
+					         p_ap_dot_global, breakdown_global);
+
 					//update the timers before jumping out.
 					reduce_sum_task(&my_cg_times[WAXPY], tWAXPY, numboxes);
 					reduce_sum_task(&my_cg_times[DOT], tDOT, numboxes);
 					reduce_sum_task(&my_cg_times[MATVEC], tMATVEC, numboxes);
 					my_cg_times[TOTAL] = mytimer() - total_time;
-					#pragma oss taskwait
 
+					#pragma oss taskwait
 					delete [] r_array;
 					delete [] p_array;
 					delete [] Ap_array;
