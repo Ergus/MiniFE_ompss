@@ -30,6 +30,7 @@
 
 #include <BoxIterator.hpp>
 #include <simple_mesh_description.hpp>
+#include "CSRMatrix.hpp"
 #include <SparseMatrix_functions.hpp>
 #include <box_utils.hpp>
 #include <Hex8_box_utils.hpp>
@@ -38,10 +39,11 @@
 namespace miniFE
 {
 
-	template<typename MatrixType>
+	template <typename MatrixType>
 	void perform_element_loop(const simple_mesh_description &mesh,
 	                          const Box &local_elem_box,
-	                          MatrixType &A, Vector &b)
+	                          MatrixType &A,
+	                          Vector &b)
 	{
 		int global_elems_x = mesh.global_box[0][1];
 		int global_elems_y = mesh.global_box[1][1];
@@ -57,7 +59,7 @@ namespace miniFE
 		BoxIterator iter = BoxIterator::begin(local_elem_box);
 		BoxIterator end  = BoxIterator::end(local_elem_box);
 
-		for(size_t i=0; iter != end; ++iter, ++i) {
+		for(size_t i = 0; iter != end; ++iter, ++i) {
 			elemIDs[i] = get_id(global_elems_x, global_elems_y, global_elems_z,
 			                    iter.x, iter.y, iter.z);
 
@@ -99,6 +101,8 @@ namespace miniFE
 		dbvprintf("sum-in: %lf\n", t_si);
 
 	}
+
+
 
 }//namespace miniFE
 

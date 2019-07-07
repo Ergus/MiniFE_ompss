@@ -40,10 +40,10 @@ namespace miniFE
 {
 	struct Vector {
 
-		Vector() : startIndex(-1),
+		Vector() : is_copy(false),
+			   startIndex(-1),
 			   local_size(-1),
-			   coefs(nullptr),
-			   is_copy(false)
+			   coefs(nullptr)
 		{
 		}
 

@@ -51,7 +51,7 @@ miniFE.x: $(OBJS) $(HEADERS)
 .PHONY: clean realclean test check-syntax
 
 clean:
-	rm -f *.o *.a *.x *.linkinfo miniFE_info.hpp mcxx_*.cpp miniFE.*.yaml
+	rm -f *.o *.a *.x *.linkinfo miniFE_info.hpp mcxx_*.cpp miniFE.*.yaml VERB*.verb
 
 realclean: clean
 	rm -f gmon.out gprof.* *~ *.yaml *.TVD.* *.mtx* *.vec* minife_debug* *.o *.a *.x *.linkinfo miniFE_info.hpp

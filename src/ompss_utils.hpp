@@ -81,11 +81,10 @@ void print_vector(std::string vname, size_t size,const  T *vect ,std::ostream &s
 	stream << " }\n";
 }
 
-
 template <typename _Key, typename _Tp>
 std::ostream& operator<< (std::ostream& os, const std::pair<_Key, _Tp> &in)
 {
-	os << pairToStr(in);
+	os << "<" << in.first << ";" << in.second << ">";
 	return os;
 }
 

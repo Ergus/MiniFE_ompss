@@ -34,6 +34,7 @@
 
 #include "SparseMatrix_functions.hpp"
 #include "simple_mesh_description.hpp"
+#include "perform_element_loop.hpp"
 
 #include "utils.hpp"
 #include "ompss_utils.hpp"
@@ -257,7 +258,8 @@ namespace miniFE
 		#ifdef VERBOSE
 		std::string filename = "VERB_mesh_gen_mat_" + std::to_string(_id) + ".verb";
 		std::ofstream stream(filename);
-		mesh.write(filename);
+		mesh->write(stream);
+		stream.close();
 		#endif
 
 		int global_nodes[3] = {
@@ -355,6 +357,7 @@ namespace miniFE
 		}
 	}
 
+
 	inline void write_task(std::string filename, const CSRMatrix &Min, size_t id)
 	{
 		CSRMatrix Mcopy(Min);  // This is a work around for the dependency issue
@@ -386,6 +389,131 @@ namespace miniFE
 
 		#pragma oss taskwait
 	}
+
+
+	#pragma oss task						\
+		in(*mesh)		 				\
+		in(mesh_ompss2_ids_to_rows[0; mesh_i_ids_to_rows_size])	\
+		inout(*A)						\
+		inout(A_rows[0; A_nrows])				\
+		inout(A_row_offsets[0; A_nrows + 1])			\
+		inout(A_packed_cols[0; A_nnz])				\
+		inout(A_packed_coefs[0; A_nnz])				\
+		inout(*b)						\
+		inout(b_coefs[0; b_local_size])
+	inline void assemble_FE_data_task(
+		const simple_mesh_description *mesh,
+		const std::pair<int,int> *mesh_ompss2_ids_to_rows,
+		size_t mesh_i_ids_to_rows_size,
+		CSRMatrix *A,
+		int *A_rows,
+		int *A_row_offsets,
+		size_t A_nrows,
+		int *A_packed_cols,
+		double *A_packed_coefs,
+		size_t A_nnz,
+		Vector *b,
+		double *b_coefs,
+		size_t b_local_size)
+	{
+		Box local_elem_box(mesh->local_box);
+
+		if (local_elem_box.get_num_ids() < 1)
+			return;
+
+		//
+		//We want the element-loop to loop over our (processor-local) domain plus a
+		//ghost layer, so we can assemble the complete linear-system without doing
+		//any communication.
+		//
+		const int ghost = 1;
+		if (local_elem_box[0][0] > 0)
+			local_elem_box[0][0] -= ghost;
+		if (local_elem_box[1][0] > 0)
+			local_elem_box[1][0] -= ghost;
+		if (local_elem_box[2][0] > 0)
+			local_elem_box[2][0] -= ghost;
+		if (local_elem_box[0][1] < mesh->global_box[0][1])
+			local_elem_box[0][1] += ghost;
+		if (local_elem_box[1][1] < mesh->global_box[1][1])
+			local_elem_box[1][1] += ghost;
+		if (local_elem_box[2][1] < mesh->global_box[2][1])
+			local_elem_box[2][1] += ghost;
+
+		perform_element_loop(*mesh, local_elem_box, *A, *b);
+	}
+
+	#pragma oss task						\
+		in(*mesh)		 				\
+		in(mesh_ompss2_ids_to_rows[0; mesh_i_ids_to_rows_size])	\
+		inout(*A)						\
+		inout(A_rows[0; A_nrows])				\
+		inout(A_row_offsets[0; A_nrows + 1])			\
+		inout(A_packed_cols[0; A_nnz])				\
+		inout(A_packed_coefs[0; A_nnz])				\
+		inout(*b)						\
+		inout(b_coefs[0; b_local_size])				\
+		inout(bc_rows_array[0: bc_rows_size])
+	void impose_dirichlet(
+		double prescribed_value,
+		CSRMatrix *A,
+		int *A_rows,
+		int *A_row_offsets,
+		size_t A_nrows,
+		int *A_packed_cols,
+		double *A_packed_coefs,
+		size_t A_nnz,
+		Vector *b,
+		double *b_coefs,
+		size_t b_local_size,
+		int global_nx, int global_ny, int global_nz,
+		const int *bc_rows_array,
+		size_t bc_rows_size)
+	{
+		const int first_local_row = A->nrows > 0 ? A->rows[0] : 0;
+		const int last_local_row  = A->nrows > 0 ? A->rows[A->nrows - 1] : -1;
+
+		for (size_t i = 0; i < bc_rows_size; ++i) {
+			const int row = bc_rows_array[i];
+
+			if (row >= first_local_row && row <= last_local_row) {
+				const size_t local_row = row - first_local_row;
+				b->coefs[local_row] = prescribed_value;
+				zero_row_and_put_1_on_diagonal(A, row);
+			}
+		}
+
+		for (size_t i = 0; i < A->nrows; ++i) {
+			const int row = A->rows[i];
+
+			if (std::binary_search(bc_rows_array,
+			                       &bc_rows_array[bc_rows_size],
+			                       row))
+				continue;
+
+			size_t row_length = 0;
+			int *cols = NULL;
+			double *coefs = NULL;
+			A->get_row_pointers(row, row_length, cols, coefs);
+
+			double sum = 0.0;
+			for(size_t j = 0; j < row_length; ++j) {
+				if (std::binary_search(bc_rows_array,
+				                       &bc_rows_array[bc_rows_size],
+				                       cols[j])) {
+					sum += coefs[j];
+					coefs[j] = 0.0;
+				}
+			}
+
+			b->coefs[i] -= sum * prescribed_value;
+		}
+	}
+
+
+
+
+
 
 }//namespace miniFE
 

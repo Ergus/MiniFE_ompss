@@ -44,7 +44,6 @@
 
 #include "SparseMatrix_functions.hpp"
 
-#include "assemble_FE_data.hpp"
 
 #include "verify_solution.hpp"
 
@@ -198,23 +197,22 @@ namespace miniFE
 				CSRMatrix *A_i = &A_array[i];
 				Vector *b_i = &b_array[i];
 
-				// TODO: A dependencies may be reduced, needs some check.
-				#pragma oss task			\
-					in(*mesh_i)			\
-					in(mesh_i->ompss2_bc_rows_0[0; mesh_i->bc_rows_0_size]) \
-					in(mesh_i->ompss2_bc_rows_1[0; mesh_i->bc_rows_1_size]) \
-					in(mesh_i->ompss2_ids_to_rows[0; mesh_i->ids_to_rows_size]) \
-					inout(*A_i)			\
-					inout(A_i->rows[0; A_i->nrows]) \
-					inout(A_i->row_offsets[0; A_i->nrows + 1]) \
-					inout(A_i->packed_cols[0; A_i->nnz]) \
-					inout(A_i->packed_coefs[0; A_i->nnz]) \
-					inout(*b_i)			\
-					inout(b_i->coefs[0; b_i->local_size])
-				{
-					assemble_FE_data(mesh_i[0], A_i[0], b_i[0]);
-				}
+				assemble_FE_data_task(mesh_i,
+				                      mesh_i->ompss2_ids_to_rows,
+				                      mesh_i->ids_to_rows_size,
+				                      A_i,
+				                      A_i->rows,
+				                      A_i->row_offsets,
+				                      A_i->nrows,
+				                      A_i->packed_cols,
+				                      A_i->packed_coefs,
+				                      A_i->nnz,
+				                      b_i,
+				                      b_i->coefs,
+				                      b_i->local_size);
 			}
+
+			#pragma oss taskwait
 
 			REGISTER_ELAPSED_TIME(fe_assembly, t_total);
 
@@ -222,16 +220,6 @@ namespace miniFE
 			ydoc.get("FE assembly")->add("FE assembly Time",fe_assembly);
 		}
 
-
-		#ifdef MINIFE_DEBUG
-		// Declare this dependencies among the whole arrays to assert consecutive execution.
-		for (size_t i = 0; i < numboxes; ++i) {
-			// TODO: task here
-			// inout  full arrays to make it sequential
-			A_array[i].write("A_prebc.mtx");
-			b_array[i].write("b_prebc.vec");
-		}
-		#endif
 
 		//Now apply dirichlet boundary-conditions
 		//(Apply the 0-valued surfaces first, then the 1-valued surface last.)
@@ -245,41 +233,42 @@ namespace miniFE
 				CSRMatrix *A_i = &A_array[i];
 				Vector *b_i = &b_array[i];
 
-				// TODO: rows_offsets shouldn't be needed
-				// This routine repeats zero_row_and_put_1_on_diagonal
-				// This shouldn't be needed
-				#pragma oss task			\
-					in(mesh_i->ompss2_bc_rows_0[0; mesh_i->bc_rows_0_size]) \
-					in(mesh_i->ompss2_bc_rows_1[0; mesh_i->bc_rows_1_size]) \
-					in(*A_i)			\
-					in(A_i->rows[0; A_i->nrows])	\
-					in(A_i->row_offsets[0; A_i->nrows + 1]) \
-					in(A_i->packed_cols[0; A_i->nnz]) \
-					inout(A_i->packed_coefs[0; A_i->nnz]) \
-					inout(*b_i)			\
-					inout(b_i->coefs[0; b_i->local_size])
-				{
-					impose_dirichlet(0.0, A_i, b_i,
-					                 global_nx + 1, global_ny + 1, global_nz + 1,
-					                 mesh_i->ompss2_bc_rows_0,
-					                 mesh_i->bc_rows_0_size);
+				impose_dirichlet(0.0,
+				                 A_i,
+				                 A_i->rows,
+				                 A_i->row_offsets,
+				                 A_i->nrows,
+				                 A_i->packed_cols,
+				                 A_i->packed_coefs,
+				                 A_i->nnz,
+				                 b_i,
+				                 b_i->coefs,
+				                 b_i->local_size,
+				                 global_nx + 1, global_ny + 1, global_nz + 1,
+				                 mesh_i->ompss2_bc_rows_0,
+				                 mesh_i->bc_rows_0_size);
 
-					impose_dirichlet(1.0, A_i, b_i,
-					                 global_nx + 1, global_ny + 1, global_nz + 1,
-					                 mesh_i->ompss2_bc_rows_1,
-					                 mesh_i->bc_rows_1_size);
-				}
+				impose_dirichlet(1.0,
+				                 A_i,
+				                 A_i->rows,
+				                 A_i->row_offsets,
+				                 A_i->nrows,
+				                 A_i->packed_cols,
+				                 A_i->packed_coefs,
+				                 A_i->nnz,
+				                 b_i,
+				                 b_i->coefs,
+				                 b_i->local_size,
+				                 global_nx + 1, global_ny + 1, global_nz + 1,
+				                 mesh_i->ompss2_bc_rows_1,
+				                 mesh_i->bc_rows_1_size);
+
 			}
+
+			#pragma oss taskwait
 
 			REGISTER_ELAPSED_TIME(dirbc_time, t_total);
 		}
-
-		#ifdef MINIFE_DEBUG
-		for (size_t i = 0; i < numboxes; ++i) {
-			A.write_matrix("A.mtx");
-			b.write_vector("b.vec");
-		}
-		#endif
 
 		singleton sing(numboxes);
 

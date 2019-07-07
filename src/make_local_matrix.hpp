@@ -62,6 +62,12 @@ namespace miniFE {
 	                        size_t nnz, size_t nrows)
 	{
 
+		#ifdef VERRBOSE
+		std::string filename = "VERB_mesh_gen_mat_" + std::to_string(_id) + ".verb";
+		std::ofstream stream(filename);
+		A->write(filename);
+		stream.close();
+		#endif
 		// First count and find the external elements
 		// And invert the externals
 		size_t num_external = 0;
@@ -381,7 +387,6 @@ namespace miniFE {
 			A->recv_neighbors = &recv_neighbors_global[id * numboxes];
 			A->recv_length = &recv_length_global[id * numboxes];
 
-			// This is already a task (look before)
 			get_recv_info_task(A, id, numboxes,
 			                   nrows_array,
 			                   start_row_array,

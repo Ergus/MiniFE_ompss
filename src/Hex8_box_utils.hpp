@@ -118,43 +118,38 @@ namespace miniFE
 		int nodeID = get_id(global_nodes_x, global_nodes_y, global_nodes_z,
 		                    elem_int_x, elem_int_y, elem_int_z);
 
-		#ifdef MINIFE_DEBUG_VERBOSE
-		std::cout << "\nelemID: " << elemID << ", nodeID: " << nodeID << std::endl;
-		#endif
+		dbvprintf("elemID: %d, nodeID: %d\n", elemID, nodeID);
+
 		get_hex8_node_ids(global_nodes_x, global_nodes_y, nodeID, node_ords);
 
 		//Map node-IDs to rows because each processor may have a non-contiguous block of
 		//node-ids, but needs a contiguous block of row-numbers:
-		#ifdef MINIFE_DEBUG_VERBOSE
-		std::cout<<"elem "<<elemID<<" nodes: ";
-		#endif
+
+		dbvprintf("elem %d nodes: ", elemID);
 		for(int i = 0; i < Hex8::numNodesPerElem; ++i) {
-			#ifdef MINIFE_DEBUG_VERBOSE
-			std::cout << node_ords[i] << " ";
-			#endif
+			dbvprintf("%d ", node_ords[i]);
+
 			node_ords[i] = mesh.map_id_to_row(node_ords[i]);
 		}
-		#ifdef MINIFE_DEBUG_VERBOSE
-		std::cout << std::endl;
-		#endif
-
-		int global_elems_x = mesh.global_box[0][1];
-		int global_elems_y = mesh.global_box[1][1];
-		int global_elems_z = mesh.global_box[2][1];
+		dbvprintf("\n");
 
 		double ix, iy, iz;
+
 		get_coords(nodeID, global_nodes_x,global_nodes_y,global_nodes_z,
 		           ix,iy,iz);
-		const double hx = 1.0 / global_elems_x;
-		const double hy = 1.0 / global_elems_y;
-		const double hz = 1.0 / global_elems_z;
+
+		const double hx = 1.0 / mesh.global_box[0][1];
+		const double hy = 1.0 / mesh.global_box[1][1];
+		const double hz = 1.0 / mesh.global_box[2][1];
+
 		get_hex8_node_coords_3d(ix, iy, iz, hx, hy, hz, node_coords);
 
-		#ifdef MINIFE_DEBUG_VERBOSE
-		for(int i = 0, offset = 0; i < Hex8::numNodesPerElem; ++i) {
+		#ifdef VERBOSE
+		int offset = 0;
+		for(int i = 0; i < Hex8::numNodesPerElem; ++i) {
 			std::cout << "(" << node_coords[offset++]
 			          << "," << node_coords[offset++]
-			          << "," <<node_coords[offset++] << ")";
+			          << "," << node_coords[offset++] << ")";
 		}
 		std::cout << std::endl;
 		#endif

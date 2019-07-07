@@ -247,7 +247,7 @@ namespace miniFE
 						                         ix, y1, iz);
 
 						dbvprintf("y = 1 BC, node %d, (%d, %d, %d)\n",
-						          nodeID, row, ix, y1, iz);
+						          nodeID, ix, y1, iz);
 
 						bc_rows_0.insert(find_row_for_id(nodeID, map_ids_to_rows));
 					}
@@ -273,7 +273,7 @@ namespace miniFE
 							       ix, iy, z1);
 
 						dbvprintf("z = 1 BC, node %d, (%d, %d, %d)\n",
-						          nodeID, row, ix, iy, z1);
+						          nodeID, ix, iy, z1);
 
 						bc_rows_0.insert(find_row_for_id(nodeID, map_ids_to_rows));
 					}
