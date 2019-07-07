@@ -38,6 +38,8 @@
 #include "utils.hpp"
 #include "ompss_utils.hpp"
 
+#include <fstream>      // std::ofstream
+
 namespace miniFE
 {
 
@@ -108,7 +110,7 @@ namespace miniFE
 			  external_index(in.external_index),
 
 			  nsend_neighbors(in.nsend_neighbors),
-			  send_neighbors(send_neighbors),
+			  send_neighbors(in.send_neighbors),
 			  send_length(in.send_length),
 			  nelements_to_send(in.nelements_to_send),
 			  elements_to_send(in.elements_to_send),
@@ -298,9 +300,10 @@ namespace miniFE
 		stream << " }\n";
 	}
 
-	inline std::ostream& operator <<(std::ostream &stream, const CSRMatrix &Min)
+
+	inline void write_task(std::string filename, const CSRMatrix &Min, size_t id)
 	{
-		CSRMatrix Mcopy(Min);
+		CSRMatrix Mcopy(Min);  // This is a work around for the dependency issue
 
 		#pragma oss task					\
 			in(Min)						\
@@ -315,6 +318,13 @@ namespace miniFE
 			in(Mcopy.send_length[0; Mcopy.nsend_neighbors])	\
 			in(Mcopy.elements_to_send[0; Mcopy.nelements_to_send])
 		{
+			std::ofstream stream;
+
+			if (id == 0)
+				stream.open(filename, std::ofstream::out);
+			else
+				stream.open(filename, std::ofstream::app);
+
 			stream << "has_local_indices" << "="<< Min.has_local_indices << "\n";
 			stream << "global_nrows" << "="<< Min.global_nrows << "\n";
 			stream << "nrows" << "="<< Min.nrows << "\n";
@@ -350,7 +360,7 @@ namespace miniFE
 			print_vector("send_length", Min.nsend_neighbors, Min.send_length, stream);
 			print_vector("nelements_to_send", Min.nelements_to_send, Min.elements_to_send, stream);
 
-			return stream;
+			stream.close();
 		}
 	}
 
@@ -359,14 +369,9 @@ namespace miniFE
 	{
 		for (size_t id = 0; id < numboxes; ++id) {
 
-			std::ofstream myfile;
-			if (id == 0)
-				myfile.open(filename, std::ofstream::out);
-			else
-				myfile.open(filename, std::ofstream::app);
 
-			myfile << A_array[id] << std::endl;
-			myfile.close();
+			write_task(filename, A_array[id], id);
+			#pragma oss taskwait
 		}
 	}
 

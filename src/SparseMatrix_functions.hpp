@@ -472,7 +472,6 @@ namespace miniFE
 		}
 		#pragma oss taskwait
 	}
-
 }//namespace miniFE
 
 #endif
