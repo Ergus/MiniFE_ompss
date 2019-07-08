@@ -130,17 +130,15 @@ namespace miniFE
 		simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
 
 		for (size_t i = 0; i < numboxes; ++i) {
-			#pragma oss task				\
-				inout (mesh_array[i])			\
-				in(global_box)				\
-				in(local_boxes_array[0; numboxes])	\
-				in(local_node_box_array[0; numboxes])
-			{
-				mesh_array[i].init(global_box, local_boxes_array, \
-				                   local_node_box_array, i, numboxes);
-			}
-			#pragma oss taskwait
+			init_mesh_task(&mesh_array[i],
+			               &global_box,
+			               local_boxes_array, \
+			               local_node_box_array,
+			               i,
+			               numboxes);
+
 		}
+		//#pragma oss taskwait
 
 
 		timer_type mesh_fill = mytimer() - t0;
@@ -163,7 +161,7 @@ namespace miniFE
 
 			}
 
-			#pragma oss taskwait
+			//#pragma oss taskwait
 			REGISTER_ELAPSED_TIME(gen_structure, t_total);
 
 			ydoc.add("Matrix structure generation","");

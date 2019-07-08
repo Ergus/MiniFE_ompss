@@ -71,11 +71,12 @@ namespace miniFE {
 		// First count and find the external elements
 		// And invert the externals
 		size_t num_external = 0;
-		std::map<int,int> externals;
-		std::vector<int> external_index_vector; // temporal.
 		const int start_row = start_row_array[id];
 		const int stop_row = stop_row_array[id];
 		const int local_nrow = nrows_array[id];
+
+		std::map<int,int> externals;
+		std::vector<int> external_index_vector; // temporal.
 
 		for (size_t i = 0; i < nrows; ++i) {
 			int *Acols = NULL;
@@ -404,9 +405,10 @@ namespace miniFE {
 			                   A->recv_neighbors,
 			                   A->recv_length,
 			                   A->nnz, A->nrows);
+
+			#pragma oss taskwait
 		}
 
-		#pragma oss taskwait
 
 		{// This allocates the recv information in a single huge array
 			int global_nrecv_neighbors = 0;

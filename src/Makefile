@@ -24,7 +24,12 @@ verbose: CFLAGS := -O0 -g -std=c99 -Wall -DVERBOSE
 verbose: CXXFLAGS := -O0 -g -std=c++11 -Wall -DVERBOSE
 
 nanos: CXX := mcxx
-nanos: CFLAGS := -O0 -g -std=c99 -Wall --ompss-2 -DNANOS6 -DVERBOSE
-nanos: CXXFLAGS := -O0 -g -std=c++11 -Wall --ompss-2 -DNANOS6 -DVERBOSE
+nanos: CFLAGS := -O0 -g -std=c99 -Wall --ompss-2 -DNANOS6
+nanos: CXXFLAGS := -O0 -g -std=c++11 -Wall --ompss-2 -DNANOS6
 
 include make_targets
+
+
+# -DNANOS6 : for nanos6
+# -DNDEBUG : no debug
+# -DVERBOSE : more verbose messages

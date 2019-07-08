@@ -26,6 +26,12 @@
 #include <map>
 #include <cstring>
 
+#ifdef NANOS6
+#include "nanos6.h"
+#else
+#define nanos6_get_cluster_node_id() 0
+#endif
+
 // General use macros Here
 #define REGISTER_ELAPSED_TIME(time_inc, time_total)			\
 	{								\
@@ -41,7 +47,7 @@
 #endif
 
 #if !defined NDEBUG && defined VERBOSE
-#define dbvprintf(...) fprintf(stderr, __VA_ARGS__)
+#define dbvprintf(ARG, ...) fprintf(stderr, "Node: %d: " ARG, nanos6_get_cluster_node_id(), ##__VA_ARGS__)
 #else
 #define dbvprintf(...)
 #endif
@@ -104,11 +110,11 @@ inline void write_all(std::string &filename, const T *in_array, size_t numboxes)
 // Distributed Memory
 static inline void *rrd_malloc(size_t size)
 {
-	void *ret = nanos6_dmalloc(size, nanos6_equpart_distribution, 1, NULL);
+	dbvprintf("Using nanos6_dmalloc ");
+	void *ret = nanos6_dmalloc(size, nanos6_equpart_distribution, 0, NULL);
 	assert(size == 0 || ret != NULL);
-	dbvprintf("Using nanos6_dmalloc [%p -> %p] size %ld\n",
-		 ret, (char*)ret + size, size);
 
+	dbvprintf("[%p -> %p] size %ld\n", ret, (char*)ret + size, size);
 	return ret;
 }
 
@@ -125,7 +131,7 @@ static inline void *rrl_malloc(size_t size)
 	void *ret = nanos6_lmalloc(size);
 	assert(size == 0 || ret != NULL);
 	dbvprintf("Using nanos6_lmalloc [%p -> %p] size %ld\n",
-		 ret, (char*)ret + size, size);
+	          ret, (char*)ret + size, size);
 
 	return ret;
 }
@@ -174,21 +180,26 @@ void reduce_sum_task(T *vout, const T *vin, size_t size)
 }
 
 template<typename T, typename Container>
-size_t stl_to_global_task(T **vout, const Container &vin)
+size_t stl_to_global_task(T *vout, const Container &vin)
 {
 	const size_t sz = vin.size();
 
-	T *tmp = (T *) rrl_malloc(sz * sizeof(T));
-	*vout = (T *) rrd_malloc(sz * sizeof(T));
+	dbvprintf("STL copy %ld elements -> %p\n", sz, (void *) vout);
+	if (sz == 0)
+		return 0;
 
+	T *tmp = (T *) rrl_malloc(sz * sizeof(T));
+
+	dbvprintf("STL allocated %ld elements -> %p\n");
 	// Copy from container to local memory, this is initialization any way.
 	size_t i = 0;
 	for (const T &a : vin)
 		tmp[i++] = a;
 
-	ompss_memcpy_task((*vout), tmp, sz * sizeof(T));
+	ompss_memcpy_task(vout, tmp, sz * sizeof(T));
 
-	dbvprintf("Copy %ld bytes -> %p\n", sz, (void *) vout);
+	#pragma oss taskwait
+	rrl_free(tmp, sz * sizeof(T));
 
 	return sz;
 }
@@ -255,16 +266,14 @@ void reduce_sum_task(T *out, const T *in, size_t size)
 }
 
 template<typename T, typename Container>
-size_t stl_to_global_task(T **vout, const Container &vin)
+size_t stl_to_global_task(T *vout, const Container &vin)
 {
 	const size_t sz = vin.size();
-
-	*vout = (T *) rrd_malloc(sz * sizeof(T));
 
 	// Copy from container to local memory, this is initialization any way.
 	size_t i = 0;
 	for (const T &a : vin)
-		(*vout)[i++] = a;
+		vout[i++] = a;
 
 	dbvprintf("Copy %ld bytes -> %p\n", sz, (void *) vout);
 
