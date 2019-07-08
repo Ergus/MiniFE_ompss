@@ -62,10 +62,10 @@ namespace miniFE {
 	                        size_t nnz, size_t nrows)
 	{
 
-		#ifdef VERRBOSE
-		std::string filename = "VERB_mesh_gen_mat_" + std::to_string(_id) + ".verb";
+		#ifdef VERBOSE
+		std::string filename = "VERB_get_recv_info_task_A_" + std::to_string(id) + ".verb";
 		std::ofstream stream(filename);
-		A->write(filename);
+		A->write(stream);
 		stream.close();
 		#endif
 		// First count and find the external elements
@@ -206,6 +206,13 @@ namespace miniFE {
 		int *send_neighbors_local,
 		int *send_length_local)
 	{
+		#ifdef VERBOSE
+		std::string filename = "VERB_get_send_info_task_A_" + std::to_string(id) + ".verb";
+		std::ofstream stream(filename);
+		A->write(stream);
+		stream.close();
+		#endif
+
 		size_t nsend_neighbors = 0;
 		int nelements_to_send = 0;
 

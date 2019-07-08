@@ -201,7 +201,7 @@ namespace miniFE {
 
 			#ifdef VERBOSE
 			std::string filename = "VERB_p_1_"  + std::to_string(i) + ".verb";
-			write_task(filename ,p_array, i);
+			write_task(filename ,p_array[i], i);
 			#endif
 
 		}
@@ -216,9 +216,9 @@ namespace miniFE {
 			//TICK();
 			#ifdef VERBOSE
 			std::string filename1 = "VERB_p_2_"  + std::to_string(i) + ".verb";
-			write_task(filename1 ,p_array, i);
+			write_task(filename1 ,p_array[i], i);
 			std::string filename2 = "VERB_A_2_"  + std::to_string(i) + ".verb";
-			write_task(filename1 ,A_array[i], i);
+			write_task(filename2 ,A_array[i], i);
 			#endif
 
 			matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);

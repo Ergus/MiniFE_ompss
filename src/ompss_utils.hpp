@@ -155,7 +155,7 @@ inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 	char *tin = (char *) pin;
 	char *tout = (char *) pout;
 
-	dbvprintf("Copy %ld bytes from %p -> %p\n", nbytes, vin, vout);
+	dbvprintf("Copy %ld bytes from %p -> %p\n", size, pin, pout);
 	#pragma oss task in(tin[0; size]) out(tout[0; size])
 	{
 		memcpy(tout, tin, size);
@@ -186,7 +186,7 @@ size_t stl_to_global_task(T **vout, const Container &vin)
 	for (const T &a : vin)
 		tmp[i++] = a;
 
-	ompss_memcpy_task((*vout), tmp, sz);
+	ompss_memcpy_task((*vout), tmp, sz * sizeof(T));
 
 	dbvprintf("Copy %ld bytes -> %p\n", sz, (void *) vout);
 

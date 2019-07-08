@@ -309,7 +309,7 @@ namespace miniFE
 		                 A->nrows,
 		                 A->nnz);
 
-		// TODO: Taskwait here
+		#pragma oss taskwait
 		rrl_free(row_coords, A->nrows * 3 * sizeof(int));
 
 	}
