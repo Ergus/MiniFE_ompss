@@ -99,6 +99,9 @@ namespace miniFE {
 					Acols[j] -= start_row;
 				} else { // Must find out if we have already set up this point
 					if (externals.find(cur_ind) == externals.end()) {
+						dbvprintf("Box %d: set element %d as external (not in [%d <-> %d])\n",
+						          id, cur_ind, start_row, stop_row);
+
 						externals[cur_ind] = num_external++;
 						external_index_vector.push_back(cur_ind);
 					}
@@ -229,7 +232,7 @@ namespace miniFE {
 			print_vector("nrecv_neighbors_global", global_nrecv_neighbors,
 			             recv_length_global, stream);
 			stream.close();
-			dbvprintf("Saved matrix %lu to file %s\n", id, filename.c_str());
+			dbvprintf("Saved vectors %lu to file %s\n", id, filename.c_str());
 		}
 		#endif
 
@@ -301,6 +304,21 @@ namespace miniFE {
 	                        int *elements_to_send_local)
 	{
 
+		#ifdef VERBOSE
+		{
+			std::string filename = "VERB_set_send_info_task_" + std::to_string(id) + ".verb";
+			std::ofstream stream(filename);
+
+			print_vector("send_neighbors_local", nsend_neighbors_local, send_neighbors_local, stream);
+			print_vector("send_length_local", nsend_neighbors_local, send_length_local, stream);
+			print_vector("recv_neighbors_global", global_nrecv_neighbors, recv_neighbors_global, stream);
+			print_vector("recv_length_global", global_nrecv_neighbors, recv_length_global, stream);
+			print_vector("external_index_global", global_nexternals_global, external_index_global, stream);
+
+			stream.close();
+			dbvprintf("Saved vectors %lu to file %s\n", id, filename.c_str());
+		}
+		#endif
 
 		CSRMatrix *A = &A_array[id];
 		// Remember this creates tasks internally
@@ -308,7 +326,7 @@ namespace miniFE {
 		// Fill the elements_to_send array
 		const int nrows = A->nrows;
 		const int start_row = nrows > 0 ? A->first_row : -1;
-		const int stop_row = nrows > 0 ? A->rows[nrows - 1] : -1;
+		const int stop_row = nrows > 0 ? A->stop_row : -1;
 
 		int *ptr_local = A->elements_to_send; 	// Where I will put the elements for this neighbors
 		double *ptr_for_remote = A->send_buffer;
@@ -316,6 +334,7 @@ namespace miniFE {
 		for (int i = 0; i < A->nsend_neighbors; ++i) { // Iterate over neighbors list
 			const size_t send_neighbor_i = A->send_neighbors[i]; // neighbor
 
+			assert(send_neighbor_i != id);    // I don't send to myself
 			assert(send_neighbor_i < numboxes);
 
 			const CSRMatrix *A_i = &A_array[send_neighbor_i];
@@ -339,10 +358,16 @@ namespace miniFE {
 
 						for (int k = 0; k < nsend_to_i; ++k) {
 							const int id_to_send_global = ptr_remote[k];
-
+							#ifndef NDEBUG
+							if ((start_row > id_to_send_global) ||
+							    (id_to_send_global > stop_row)) {
+								dbprintf("Error Box %d: element %d to box %d is not in [%d %d] (it %d)\n",
+								         id, id_to_send_global, send_neighbor_i, start_row, stop_row, k);
+							}
 							// Assert I have this element
 							assert(start_row <= id_to_send_global);
 							assert(id_to_send_global <= stop_row);
+							#endif
 
 							ptr_local[k] = id_to_send_global - start_row;
 						}
@@ -406,7 +431,6 @@ namespace miniFE {
 				}
 			}
 
-			
 		}
 		// Find the external elements (recv information).
 		// Scan the indices and transform to local
