@@ -90,7 +90,7 @@ namespace miniFE
 			                       &ompss2_ids_to_rows[ids_to_rows_size]);
 		}
 
-		void write(std::ofstream &stream) const
+		void write(std::ostream &stream = std::cout) const
 		{
 			stream << "mesh: " << id << "\n";
 			stream << "global_box: " <<  global_box << "\n";
@@ -185,7 +185,7 @@ namespace miniFE
 					const int nodeID = get_id(max_node_x, max_node_y, max_node_z,
 					                          0, iy, iz);
 
-					dbvprintf("x = 0 BC, node %d, (%d, %d, %d)\n",
+					dbv2printf("x = 0 BC, node %d, (%d, %d, %d)\n",
 					          nodeID, 0, iy, iz);
 
 					bc_rows_0.insert(find_row_for_id(nodeID, map_ids_to_rows));
@@ -209,7 +209,7 @@ namespace miniFE
 				for(int ix=minx; ix<maxx; ++ix) {
 					int nodeID = get_id(max_node_x, max_node_y, max_node_z,
 					                    ix, 0, iz);
-					dbvprintf("y = 0 BC, node %d, (%d, %d, %d)\n",
+					dbv2printf("y = 0 BC, node %d, (%d, %d, %d)\n",
 					          nodeID, ix, 0, iz);
 
 					int row = find_row_for_id(nodeID, map_ids_to_rows);
@@ -241,7 +241,7 @@ namespace miniFE
 				for(int ix = minx; ix < maxx; ++ix) {
 					int nodeID = get_id(max_node_x, max_node_y, max_node_z,
 					                    ix, iy, 0);
-					dbvprintf("z = 0 BC, node %d, (%d, %d, %d)\n",
+					dbv2printf("z = 0 BC, node %d, (%d, %d, %d)\n",
 					          nodeID, ix, iy, 0);
 
 					bc_rows_0.insert(find_row_for_id(nodeID, map_ids_to_rows));
@@ -267,7 +267,7 @@ namespace miniFE
 					                    x1, iy, iz);
 					int row = find_row_for_id(nodeID, map_ids_to_rows);
 
-					dbvprintf("x = 1 BC, node %d, row %d, (%d, %d, %d)\n",
+					dbv2printf("x = 1 BC, node %d, row %d, (%d, %d, %d)\n",
 					          nodeID, row, x1, iy, iz);
 
 					bc_rows_1.insert(row);
@@ -292,7 +292,7 @@ namespace miniFE
 					int nodeID = get_id(max_node_x, max_node_y, max_node_z,
 					                    ix, y1, iz);
 
-					dbvprintf("y = 1 BC, node %d, (%d, %d, %d)\n",
+					dbv2printf("y = 1 BC, node %d, (%d, %d, %d)\n",
 					          nodeID, ix, y1, iz);
 
 					bc_rows_0.insert(find_row_for_id(nodeID, map_ids_to_rows));
@@ -318,7 +318,7 @@ namespace miniFE
 						get_id(max_node_x, max_node_y, max_node_z,
 						       ix, iy, z1);
 
-					dbvprintf("z = 1 BC, node %d, (%d, %d, %d)\n",
+					dbv2printf("z = 1 BC, node %d, (%d, %d, %d)\n",
 					          nodeID, ix, iy, z1);
 
 					bc_rows_0.insert(find_row_for_id(nodeID, map_ids_to_rows));
@@ -352,8 +352,6 @@ namespace miniFE
 
 		mesh->ids_to_rows_size =
 			stl_to_global_task(mesh->ompss2_ids_to_rows, map_ids_to_rows);
-
-
 
 	}
 

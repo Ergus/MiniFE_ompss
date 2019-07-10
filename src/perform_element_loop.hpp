@@ -63,7 +63,7 @@ namespace miniFE
 			elemIDs[i] = get_id(global_elems_x, global_elems_y, global_elems_z,
 			                    iter.x, iter.y, iter.z);
 
-			dbvprintf("elem ID %d (%d, %d, %d)\n", elemIDs[i], iter.x, iter.y, iter.z);
+			dbv2printf("elem ID %d (%d, %d, %d)\n", elemIDs[i], iter.x, iter.y, iter.z);
 		}
 
 		//Now do the actual finite-element assembly loop:

@@ -217,13 +217,18 @@ public:
 			}
 		}
 	}
+
+	std::ostream &write(std::ostream &stream = std::cout) const
+	{
+		for (int i = 0; i < 6; ++i)
+			stream << ranges[i] << "; ";
+		return stream;
+	}
 };
 
 inline std::ostream& operator <<(std::ostream &stream, const Box &in)
 {
-	for (int i = 0; i < 6; ++i)
-		stream << in.ranges[i] << "; ";
-	return stream;
+	return in.write(stream);
 }
 
 #endif

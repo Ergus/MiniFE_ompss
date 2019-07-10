@@ -127,6 +127,8 @@ namespace miniFE
 			}
 		}
 
+		global_box.write();
+
 		simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
 
 		for (size_t i = 0; i < numboxes; ++i) {
@@ -168,21 +170,26 @@ namespace miniFE
 			ydoc.get("Matrix structure generation")->add("Mat-struc-gen Time", gen_structure);
 		}
 
+		singleton sing(numboxes);
 
 		// Declare vector objects array
 		Vector *b_array = new Vector[numboxes];
 		Vector *x_array = new Vector[numboxes];
-		// TODO: Task Here
-		for (size_t i = 0; i < numboxes; ++i) {
 
-			#pragma oss task		\
-				inout(b_array[i])	\
-				inout (x_array[i])	\
-				in(A_array[i])
-			{
-				b_array[i].init(A_array[i].first_row, A_array[i].nrows);
-				x_array[i].init(A_array[i].first_row, A_array[i].nrows);
+
+		// TODO: Task Here gene
+
+		{
+			int Astart[numboxes];
+			int Alength[numboxes];
+
+			for (size_t i = 0; i < numboxes; ++i) {
+				Astart[i] = A_array[i].first_row;
+				Alength[i] = A_array[i].nrows;
 			}
+
+			init_vector_all(b_array, &sing, numboxes, Astart, Alength);
+			init_vector_all(x_array, &sing, numboxes, Astart, Alength);
 		}
 
 		//Assemble finite-element sub-matrices and sub-vectors into the global linear system:
@@ -195,7 +202,8 @@ namespace miniFE
 				CSRMatrix *A_i = &A_array[i];
 				Vector *b_i = &b_array[i];
 
-				assemble_FE_data_task(mesh_i,
+				assemble_FE_data_task(i,
+				                      mesh_i,
 				                      mesh_i->ompss2_ids_to_rows,
 				                      mesh_i->ids_to_rows_size,
 				                      A_i,
@@ -209,7 +217,6 @@ namespace miniFE
 				                      b_i->coefs,
 				                      b_i->local_size);
 			}
-
 			#pragma oss taskwait
 
 			REGISTER_ELAPSED_TIME(fe_assembly, t_total);
@@ -231,7 +238,7 @@ namespace miniFE
 				CSRMatrix *A_i = &A_array[i];
 				Vector *b_i = &b_array[i];
 
-				impose_dirichlet(0.0,
+				impose_dirichlet_task(0.0,
 				                 A_i,
 				                 A_i->rows,
 				                 A_i->row_offsets,
@@ -246,7 +253,7 @@ namespace miniFE
 				                 mesh_i->ompss2_bc_rows_0,
 				                 mesh_i->bc_rows_0_size);
 
-				impose_dirichlet(1.0,
+				impose_dirichlet_task(1.0,
 				                 A_i,
 				                 A_i->rows,
 				                 A_i->row_offsets,
@@ -268,7 +275,7 @@ namespace miniFE
 			REGISTER_ELAPSED_TIME(dirbc_time, t_total);
 		}
 
-		singleton sing(numboxes);
+
 
 		//Transform global indices to local, set up communication information:
 		{

@@ -156,7 +156,7 @@ namespace miniFE {
 	                  int &num_iters,
 	                  double &normr,
 	                  timer_type* my_cg_times,
-	                  const singleton *sing)
+	                  singleton *sing)
 	{
 
 		timer_type t0 = 0, tWAXPY[numboxes], tDOT[numboxes], tMATVEC[numboxes];
@@ -166,18 +166,32 @@ namespace miniFE {
 		Vector *p_array = new Vector[numboxes];
 		Vector *Ap_array = new Vector[numboxes];
 
+		{
+			int start[numboxes];
+			int length[numboxes];
+
+			int p_start[numboxes];
+			int p_length[numboxes];
+
+			for (size_t i = 0; i < numboxes; ++i) {
+				start[i] = A_array[i].first_row;
+				length[i] = A_array[i].nrows;
+
+				p_start[i] = 0;
+				p_length[i] = A_array[i].num_cols;
+
+				tWAXPY[i] = 0.0;
+				tDOT[i] = 0.0;
+				tMATVEC[i] = 0.0;
+			}
+
+			init_vector_all(r_array, sing, numboxes, start, length);
+			init_vector_all(Ap_array, sing, numboxes, start, length);
+			init_vector_all(p_array, sing, numboxes, p_start, p_length);
+		}
+
 
 		for (size_t i = 0; i < numboxes; ++i) {
-			tWAXPY[i] = 0.0;
-			tDOT[i] = 0.0;
-			tMATVEC[i] = 0.0;
-			const int first_row_i = b_array[i].startIndex;
-			const int local_nrows_i = A_array[i].nrows;
-			const int Anumcols = A_array[i].num_cols;
-
-			r_array[i].init(first_row_i, local_nrows_i);
-			Ap_array[i].init(first_row_i, local_nrows_i);
-			p_array[i].init(0, Anumcols);
 		}
 
 

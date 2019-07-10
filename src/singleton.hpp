@@ -3,6 +3,8 @@
 
 #include "ompss_utils.hpp"
 
+#define MAXVECTORS 10
+
 class singleton {
 public:
 	size_t numboxes;
@@ -31,6 +33,10 @@ public:
 	int *elements_to_send;      // full list of local indices
 	double *send_buffer;        // send buffer
 
+	int nvectors;
+	int vector_global_size[MAXVECTORS]; // TODO: this is totally arbitrary
+	double *vector_coefs[MAXVECTORS];
+
 	singleton(size_t _numboxes) :
 		numboxes(_numboxes),
 		global_nrecv_neighbors(-1),
@@ -53,8 +59,15 @@ public:
 
 		nelements_to_send(((int *) rrl_malloc(_numboxes * sizeof(int)))),
 		elements_to_send(nullptr),
-		send_buffer(nullptr)
-	{}
+		send_buffer(nullptr),
+
+		nvectors(0)
+	{
+		for (size_t i = 0 ; i < MAXVECTORS; ++i) {
+			vector_global_size[i] = -1;
+			vector_coefs[i] = nullptr;
+		}
+	}
 
 	~singleton()
 	{
@@ -74,13 +87,20 @@ public:
 		rrl_free(nsend_neighbors, numboxes * sizeof(int));
 		rrl_free(nelements_to_send, numboxes * sizeof(int));
 
-		assert(global_nsend_neighbors >= 0);
+		assert(global_nsend_neighbors > 0);
 		rrd_free(send_neighbors, global_nsend_neighbors * sizeof(int));
 		rrd_free(send_length, global_nsend_neighbors * sizeof(int));
 
-		assert(global_nelements_to_send >= 0);
+		assert(global_nelements_to_send > 0);
 		rrd_free(elements_to_send, global_nelements_to_send * sizeof(int));
 		rrd_free(send_buffer, global_nelements_to_send * sizeof(double));
+
+		for (size_t i = 0; i < nvectors; ++i) {
+			assert(vector_coefs[i] != nullptr);
+			assert(vector_global_size[i] >= 0);
+			rrd_free(vector_coefs[i], vector_global_size[nvectors] * sizeof(double));
+		}
+
 	}
 
 
@@ -115,6 +135,17 @@ public:
 		send_buffer = (double *) rrd_malloc(global_nelements_to_send * sizeof(double));
 
 		return (send_neighbors && send_length && elements_to_send && send_buffer);
+	}
+
+	double *allocate_vectors(size_t total_size)
+	{
+		if (nvectors == MAXVECTORS)
+			return nullptr;
+
+		vector_global_size[nvectors] = total_size;
+		vector_coefs[nvectors] = (double *) rrd_malloc(total_size * sizeof(double));
+
+		return vector_coefs[nvectors++];
 	}
 
 	void* operator new(size_t sz)

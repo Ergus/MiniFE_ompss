@@ -34,32 +34,31 @@
 #include <iostream>
 #include <cstdlib>
 
+#include "CSRMatrix.hpp"
 #include "ompss_utils.hpp"
+
+#include "singleton.hpp"
 
 namespace miniFE
 {
 	struct Vector {
 
-		Vector() : is_copy(false),
-			   startIndex(-1),
-			   local_size(-1),
-			   coefs(nullptr)
-		{
-		}
+		int startIndex;
+		size_t local_size;
+		double *coefs;
+
+		Vector() : startIndex(-1),
+			   local_size(-1), coefs(nullptr)
+		{}
 
 		Vector(const Vector &in) :
-			is_copy(true),
 			startIndex(in.startIndex),
 			local_size(in.local_size),
 			coefs(in.coefs)
-		{
-		}
+		{}
 
 		~Vector()
-		{
-			if (!is_copy)
-				rrd_free(coefs, local_size * sizeof(double));
-		}
+		{}
 
 		// Arrays allocations (boxes can go in local memory)
 		static void* operator new[](std::size_t sz)
@@ -75,21 +74,14 @@ namespace miniFE
 			return rrl_free(ptr, sz);
 		}
 
-		void init(const int startIdx, const int local_sz)
+		void init(const int startIdx, const int local_sz, double *ptr)
 		{
 			startIndex = startIdx;
 			local_size = local_sz;
-			coefs = (double *) rrd_malloc(local_sz * sizeof(double));
+			coefs = ptr;
 
-			// TODO: task HERE
-			for (int i = 0; i < local_sz; ++i)
-				coefs[i] = 0.;
+			//ompss_memset_task(coefs, 0, local_sz * sizeof(double));
 		}
-
-		bool is_copy;
-		int startIndex;
-		size_t local_size;
-		double *coefs;
 
 		void sum_into_vector(size_t num_indices,
 		                     const int *indices, const double *coefs)
@@ -112,6 +104,29 @@ namespace miniFE
 		}
 
 	};
+
+
+	void init_vector_all(Vector *b_array,
+	                     singleton *sing,
+	                     size_t numboxes,
+	                     const int *start, const int *length)
+	{
+		int *start_idx = (int *) alloca(numboxes * sizeof(int));
+
+		int elements = 0;
+		for (size_t i = 0; i < numboxes; ++i) {
+			start_idx[i] = elements;
+			elements += length[i];
+		}
+
+		double * tmp = sing->allocate_vectors(elements);
+
+		assert(tmp);
+
+		for (size_t i = 0; i < numboxes; ++i)
+			b_array[i].init(start[i], length[i], &(tmp[start_idx[i]]));
+	}
+
 
 	void dot_task(const Vector *x, const Vector *y, double *ret)
 	{

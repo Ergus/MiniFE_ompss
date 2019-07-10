@@ -30,10 +30,11 @@
 
 #include <stdexcept>
 
-#include <box_utils.hpp>
-#include <ElemData.hpp>
-#include <simple_mesh_description.hpp>
-#include <Hex8.hpp>
+#include "box_utils.hpp"
+#include "ElemData.hpp"
+#include "simple_mesh_description.hpp"
+#include "Hex8.hpp"
+#include "ompss_utils.hpp"
 
 namespace miniFE
 {
@@ -118,20 +119,20 @@ namespace miniFE
 		int nodeID = get_id(global_nodes_x, global_nodes_y, global_nodes_z,
 		                    elem_int_x, elem_int_y, elem_int_z);
 
-		dbvprintf("elemID: %d, nodeID: %d\n", elemID, nodeID);
+		dbv2printf("elemID: %d, nodeID: %d\n", elemID, nodeID);
 
 		get_hex8_node_ids(global_nodes_x, global_nodes_y, nodeID, node_ords);
 
 		//Map node-IDs to rows because each processor may have a non-contiguous block of
 		//node-ids, but needs a contiguous block of row-numbers:
 
-		dbvprintf("elem %d nodes: ", elemID);
+		dbv2printf("elem %d nodes: ", elemID);
 		for(int i = 0; i < Hex8::numNodesPerElem; ++i) {
-			dbvprintf("%d ", node_ords[i]);
+			dbv2printf("%d ", node_ords[i]);
 
 			node_ords[i] = mesh.map_id_to_row(node_ords[i]);
 		}
-		dbvprintf("\n");
+		dbv2printf("\n");
 
 		double ix, iy, iz;
 
@@ -144,12 +145,13 @@ namespace miniFE
 
 		get_hex8_node_coords_3d(ix, iy, iz, hx, hy, hz, node_coords);
 
-		#ifdef VERBOSE
+		#if VERBOSE == 2
 		int offset = 0;
 		for(int i = 0; i < Hex8::numNodesPerElem; ++i) {
-			std::cout << "(" << node_coords[offset++]
-			          << "," << node_coords[offset++]
-			          << "," << node_coords[offset++] << ")";
+			dbv2printf("(%lf, %lf,%lf)",
+			           node_coords[offset++],
+			           node_coords[offset++],
+			           node_coords[offset++]);
 		}
 		std::cout << std::endl;
 		#endif

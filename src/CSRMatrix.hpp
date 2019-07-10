@@ -196,7 +196,7 @@ namespace miniFE
 			miniFE::sum_into_row(row_len, mat_row_cols, mat_row_coefs, num_indices, col_inds, coefs);
 		}
 
-		void write(std::ostream &stream) const
+		void write(std::ostream &stream = std::cout) const
 		{
 			stream << "CSRMatrix: " << id << "\n";
 			stream << "has_local_indices" << "="<< has_local_indices << "\n";
@@ -243,11 +243,43 @@ namespace miniFE
 
 	}; // class CSRMatrix
 
+	inline void write_task(std::string filename, const CSRMatrix &Min, size_t id)
+	{
+		CSRMatrix Mcopy(Min);  // This is a work around for the dependency issue
 
-	#pragma oss task						\
-		inout(A[0])						\
-		in(mesh[0])						\
-		in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])       // weak
+		#pragma oss task					\
+			in(Mcopy)						\
+			in(Mcopy.rows[0; Mcopy.nrows])			\
+			in(Mcopy.row_offsets[0; Mcopy.nrows + 1])	\
+			in(Mcopy.packed_cols[0; Mcopy.nnz])		\
+			in(Mcopy.packed_coefs[0; Mcopy.nnz])		\
+			in(Mcopy.recv_neighbors[0; Mcopy.nrecv_neighbors]) \
+			in(Mcopy.recv_length[0; Mcopy.nrecv_neighbors])	\
+			in(Mcopy.external_index[0; Mcopy.nexternals])	\
+			in(Mcopy.send_neighbors[0; Mcopy.nsend_neighbors]) \
+			in(Mcopy.send_length[0; Mcopy.nsend_neighbors])	\
+			in(Mcopy.elements_to_send[0; Mcopy.nelements_to_send])
+		{
+			std::ofstream stream;
+
+			if (id == 0)
+				stream.open(filename, std::ofstream::out);
+			else
+				stream.open(filename, std::ofstream::app);
+
+			Mcopy.write(stream);
+
+			stream.close();
+		}
+
+		#pragma oss taskwait
+	}
+
+
+	// #pragma oss task						\
+	// 	inout(A[0])						\
+	// 	in(mesh[0])						\
+	// 	in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])       // weak
 	void generate_matrix_structure_task(CSRMatrix *A,
 	                                    const simple_mesh_description *mesh,
 	                                    std::pair<int,int> *mesh_ompss2_ids_to_rows,
@@ -256,7 +288,8 @@ namespace miniFE
 	{
 
 		#ifdef VERBOSE
-		std::string filename = "VERB_mesh_gen_mat_" + std::to_string(_id) + ".verb";
+		std::string filename = "VERB_mesh_generate_matrix_structure_task" +
+			std::to_string(_id) + ".verb";
 		std::ofstream stream(filename);
 		mesh->write(stream);
 		stream.close();
@@ -311,7 +344,6 @@ namespace miniFE
 
 		#pragma oss taskwait
 		rrl_free(row_coords, A->nrows * 3 * sizeof(int));
-
 	}
 
 
@@ -357,40 +389,6 @@ namespace miniFE
 		}
 	}
 
-
-	inline void write_task(std::string filename, const CSRMatrix &Min, size_t id)
-	{
-		CSRMatrix Mcopy(Min);  // This is a work around for the dependency issue
-
-		#pragma oss task					\
-			in(Mcopy)						\
-			in(Mcopy.rows[0; Mcopy.nrows])			\
-			in(Mcopy.row_offsets[0; Mcopy.nrows + 1])	\
-			in(Mcopy.packed_cols[0; Mcopy.nnz])		\
-			in(Mcopy.packed_coefs[0; Mcopy.nnz])		\
-			in(Mcopy.recv_neighbors[0; Mcopy.nrecv_neighbors]) \
-			in(Mcopy.recv_length[0; Mcopy.nrecv_neighbors])	\
-			in(Mcopy.external_index[0; Mcopy.nexternals])	\
-			in(Mcopy.send_neighbors[0; Mcopy.nsend_neighbors]) \
-			in(Mcopy.send_length[0; Mcopy.nsend_neighbors])	\
-			in(Mcopy.elements_to_send[0; Mcopy.nelements_to_send])
-		{
-			std::ofstream stream;
-
-			if (id == 0)
-				stream.open(filename, std::ofstream::out);
-			else
-				stream.open(filename, std::ofstream::app);
-
-			Mcopy.write(stream);
-
-			stream.close();
-		}
-
-		#pragma oss taskwait
-	}
-
-
 	#pragma oss task						\
 		in(*mesh)		 				\
 		in(mesh_ompss2_ids_to_rows[0; mesh_i_ids_to_rows_size])	\
@@ -401,7 +399,7 @@ namespace miniFE
 		inout(A_packed_coefs[0; A_nnz])				\
 		inout(*b)						\
 		inout(b_coefs[0; b_local_size])
-	inline void assemble_FE_data_task(
+	inline void assemble_FE_data_task(size_t id,
 		const simple_mesh_description *mesh,
 		const std::pair<int,int> *mesh_ompss2_ids_to_rows,
 		size_t mesh_i_ids_to_rows_size,
@@ -420,7 +418,6 @@ namespace miniFE
 
 		if (local_elem_box.get_num_ids() < 1)
 			return;
-
 		//
 		//We want the element-loop to loop over our (processor-local) domain plus a
 		//ghost layer, so we can assemble the complete linear-system without doing
@@ -443,24 +440,25 @@ namespace miniFE
 		perform_element_loop(*mesh, local_elem_box, *A, *b);
 	}
 
+	// TODO there are some if only
 	#pragma oss task						\
-		inout(*A)						\
-		inout(A_rows[0; A_nrows])				\
-		inout(A_row_offsets[0; A_nrows + 1])			\
-		inout(A_packed_cols[0; A_nnz])				\
-		inout(A_packed_coefs[0; A_nnz])				\
+		inout(A[0])						\
+		inout(Arows[0; Anrows])					\
+		inout(Arow_offsets[0; Anrows + 1])			\
+		inout(Apacked_cols[0; Annz])				\
+		inout(Apacked_coefs[0; Annz])				\
 		inout(*b)						\
 		inout(b_coefs[0; b_local_size])				\
 		inout(bc_rows_array[0: bc_rows_size])
-	void impose_dirichlet(
+	void impose_dirichlet_task(
 		double prescribed_value,
 		CSRMatrix *A,
-		int *A_rows,
-		int *A_row_offsets,
-		size_t A_nrows,
-		int *A_packed_cols,
-		double *A_packed_coefs,
-		size_t A_nnz,
+		int *Arows,
+		int *Arow_offsets,
+		size_t Anrows,
+		int *Apacked_cols,
+		double *Apacked_coefs,
+		size_t Annz,
 		Vector *b,
 		double *b_coefs,
 		size_t b_local_size,
@@ -468,6 +466,17 @@ namespace miniFE
 		const int *bc_rows_array,
 		size_t bc_rows_size)
 	{
+		#ifdef VERBOSE
+		{
+			std::string filename = "VERB_mesh_start_impose_dirichlet_"  +
+				std::to_string(A->id) + "_" +
+				std::to_string(prescribed_value) + ".verb";
+			std::ofstream stream(filename);
+			A->write(stream);
+			stream.close();
+		}
+		#endif
+
 		const int first_local_row = A->nrows > 0 ? A->rows[0] : 0;
 		const int last_local_row  = A->nrows > 0 ? A->rows[A->nrows - 1] : -1;
 
@@ -506,6 +515,19 @@ namespace miniFE
 
 			b->coefs[i] -= sum * prescribed_value;
 		}
+
+		#ifdef VERBOSE
+		{
+			std::string filename = "VERB_mesh_exit_impose_dirichlet_"  +
+				std::to_string(A->id) + "_" +
+				std::to_string(prescribed_value) + ".verb";
+			std::ofstream stream(filename);
+			A->write(stream);
+			stream.close();
+		}
+		#endif
+
+
 	}
 
 

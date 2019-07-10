@@ -26,13 +26,10 @@
 #include <map>
 #include <cstring>
 
-#ifdef NANOS6
-#include "nanos6.h"
-#else
-#define nanos6_get_cluster_node_id() 0
-#endif
-
 // General use macros Here
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
 #define REGISTER_ELAPSED_TIME(time_inc, time_total)			\
 	{								\
 		time_inc = mytimer() - time_inc;			\
@@ -48,15 +45,26 @@
 
 #if !defined NDEBUG && defined VERBOSE
 #define dbvprintf(ARG, ...) fprintf(stderr, "Node: %d: " ARG, nanos6_get_cluster_node_id(), ##__VA_ARGS__)
+#if VERBOSE == 2
+#define dbv2printf(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define dbv2printf(...)
+#endif
 #else
 #define dbvprintf(...)
+#define dbv2printf(...)
 #endif
 
-#ifndef NDEBUG
-#define dbarray_to_stream(ARRAY, size, ...) \
-	array_to_stream(ARRAY, size, #ARRAY, ##__VA_ARGS__)
+#if !defined NDEBUG && defined VERBOSE
+#define rrd_malloc(size) _rrd_malloc(size, __FILE__ ":"  STR(__LINE__))
+#define rrl_malloc(size) _rrl_malloc(size, __FILE__ ":"  STR(__LINE__))
+#define rrd_free(var, size) _rrd_free(var, size, __FILE__ ":"  STR(__LINE__) "(" #var ")")
+#define rrl_free(var, size) _rrl_free(var, size, __FILE__ ":"  STR(__LINE__) "(" #var ")")
 #else
-#define dbarray_to_stream(...)
+#define rrd_malloc(size) _rrd_malloc(size)
+#define rrl_malloc(size) _rrl_malloc(size)
+#define rrd_free(var, size) _rrd_free(var, size)
+#define rrl_free(var, size) _rrl_free(var, size)
 #endif
 
 // General Purpose functions
@@ -101,62 +109,55 @@ inline void write_all(std::string &filename, const T *in_array, size_t numboxes)
 		write_task(filename, in_array[id], id);
 }
 
-
 #ifdef NANOS6 // ===============================================================
 
 // Nanos6 defined (this can go in a file)
 #include "nanos6.h"
 
-// Distributed Memory
-static inline void *rrd_malloc(size_t size)
+static inline void ompss_memset_task(void *s, int c, size_t n)
 {
-	dbvprintf("Using nanos6_dmalloc ");
-	void *ret = nanos6_dmalloc(size, nanos6_equpart_distribution, 0, NULL);
-	assert(size == 0 || ret != NULL);
+	char *ts = (char *) s;
 
-	dbvprintf("[%p -> %p] size %ld\n", ret, (char*)ret + size, size);
+	#pragma oss task out(ts[0; n])
+	memset(ts, c, n);
+}
+
+// Distributed Memory
+inline void *_rrd_malloc(size_t size, const char info[] = "")
+
+{
+	dbvprintf("%s %s(%lu) = ", info, __func__, size);
+	void *ret = nanos6_dmalloc(size, nanos6_equpart_distribution, 0, NULL);
+	dbvprintf("[%p -> %p]\n", ret, (char*)ret + size);
+
+	assert(size == 0 || ret != NULL);
 	return ret;
 }
 
-static inline void rrd_free(void *in, size_t size)
+static inline void _rrd_free(void *in, size_t size, const char info[] = "")
 {
-	dbvprintf("Using nanos6_dfree(%p)\n", in);
-	if (in)
-		nanos6_dfree(in, size);
+	dbvprintf("%s %s(%p, %lu)\n", info, __PRETTY_FUNCTION__, in, size);
+	nanos6_dfree(in, size);
 }
 
-// Local Memory
-static inline void *rrl_malloc(size_t size)
+static inline void *_rrl_malloc(size_t size, const char info[] = "")
 {
+	dbvprintf("%s %s(%lu) = ", info, __PRETTY_FUNCTION__, size);
 	void *ret = nanos6_lmalloc(size);
 	assert(size == 0 || ret != NULL);
-	dbvprintf("Using nanos6_lmalloc [%p -> %p] size %ld\n",
-	          ret, (char*)ret + size, size);
-
-	return ret;
-}
-
-static inline void *rrl_calloc(size_t nmemb, size_t size)
-{
-	const int bytes = nmemb * size;
-	void *ret = rrl_malloc(bytes);
-	assert(size == 0 || ret != NULL);
-	dbvprintf("Using nanos6_lmalloc (calloc) [%p -> %p] size %ld\n",
+	dbvprintf(" [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
-	memset(ret, 0, bytes);
 
 	return ret;
 }
 
-
-static inline void rrl_free(void *in, size_t size)
+static inline void _rrl_free(void *in, size_t size, const char info[] = "")
 {
-	dbvprintf("Using nanos6_lfree(%p)\n", in);
-	if (in)
-		nanos6_lfree(in, size);
+	dbvprintf("%s %s(%p, %lu)\n", info, __func__, in, size);
+	nanos6_lfree(in, size);
 }
 
-inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
+static inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 {
 	char *tin = (char *) pin;
 	char *tout = (char *) pout;
@@ -209,25 +210,31 @@ size_t stl_to_global_task(T *vout, const Container &vin)
 
 #else // NANOS6 ================================================================
 
-// use libc functions
+#define nanos6_get_cluster_node_id() 0
 
-static inline void *rrd_malloc(size_t size)
+static inline void ompss_memset_task(void *s, int c, size_t n)
 {
+	memset(s, c, n);
+}
+
+static inline void *_rrd_malloc(size_t size, const char info[] = "")
+{
+	dbvprintf("%s %s(%ld) = ", info, __func__, size);
 	void *ret = malloc(size);
-	dbvprintf("Using libc dmalloc [%p -> %p] size %ld\n",
-		 ret, (char*)ret + size, size);
+	dbvprintf("[%p -> %p]\n", ret, (char*)ret + size);
 
 	return ret;
 }
 
-static inline void rrd_free(void *in, size_t size  __attribute__((unused)))
+static inline void _rrd_free(void *in, size_t size, const char info[] = "")
 {
-	dbvprintf("Using libc dfree(%p)\n", in);
+	dbvprintf("%s %s(%p, %ld)\n", info, __func__, in, size);
 	free(in);
 }
 
-static inline void *rrl_malloc(size_t size)
+static inline void *_rrl_malloc(size_t size, const char info[] = "")
 {
+	dbvprintf("%s %s(%ld) = ", info, __func__, size);
 	void *ret = malloc(size);
 	assert(size == 0 || ret != NULL);
 	dbvprintf("Using libc lmalloc [%p -> %p] size %ld\n",
@@ -236,21 +243,13 @@ static inline void *rrl_malloc(size_t size)
 	return ret;
 }
 
-static inline void *rrl_calloc(size_t nmemb, size_t size)
+static inline void _rrl_free(void *in, size_t size, const char info[] = "")
 {
-	void *ret = calloc(nmemb, size);
-	assert(size == 0 || ret != NULL);
-	dbvprintf("Using libc lcalloc [%p -> %p] size %ld\n",
-		 ret, (char*)ret + size, size);
-
-	return ret;
-}
-
-static inline void rrl_free(void *in, size_t size  __attribute__((unused)))
-{
-	dbvprintf("Using libc lfree(%p)\n", in);
+	dbvprintf("%s %s(%p, %ld)\n", info, __func__, in, size);
 	free(in);
 }
+
+
 
 inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 {
@@ -275,7 +274,7 @@ size_t stl_to_global_task(T *vout, const Container &vin)
 	for (const T &a : vin)
 		vout[i++] = a;
 
-	dbvprintf("Copy %ld bytes -> %p\n", sz, (void *) vout);
+	dbvprintf("STL copy %ld elements -> %p\n", sz, (void *) vout);
 
 	return sz;
 }

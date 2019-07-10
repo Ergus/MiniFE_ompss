@@ -87,8 +87,6 @@ int main(int argc, char** argv)
 	// This one is recursive, play with weak here (but it is a cheap)
 	box_partition(0, params.numboxes, 2, global_box, local_boxes);
 
-	dbarray_to_stream(local_boxes, params.numboxes);
-
 	std::ostringstream osstr;
 	osstr << "miniFE." << params.nx << "x" << params.ny << "x" << params.nz;
 	osstr << ".";
