@@ -215,10 +215,18 @@ namespace miniFE {
 		int *send_length_local)
 	{
 		#ifdef VERBOSE
-		std::string filename = "VERB_get_send_info_task_A_" + std::to_string(id) + ".verb";
-		std::ofstream stream(filename);
-		A->write(stream);
-		stream.close();
+		{
+			std::string filename = "VERB_get_send_info_task_vectors_" + std::to_string(id) + ".verb";
+			std::ofstream stream(filename);
+			print_vector("nrecv_neighbors_global", numboxes,
+			             nrecv_neighbors_global, stream);
+			print_vector("recv_neighbors_global", global_nrecv_neighbors,
+			             recv_neighbors_global, stream);
+			print_vector("nrecv_neighbors_global", global_nrecv_neighbors,
+			             recv_length_global, stream);
+			stream.close();
+			dbvprintf("Saved matrix %lu to file %s\n", id, filename.c_str());
+		}
 		#endif
 
 		size_t nsend_neighbors = 0;
@@ -289,6 +297,7 @@ namespace miniFE {
 	                        int *elements_to_send_local)
 	{
 
+
 		CSRMatrix *A = &A_array[id];
 		// Remember this creates tasks internally
 
@@ -307,7 +316,7 @@ namespace miniFE {
 
 			const CSRMatrix *A_i = &A_array[send_neighbor_i];
 
-			// Where the neighbor has the ids I will send to it
+			// Where the neighbor has the external indices
 			const int *ptr_remote = A_i->external_index;
 
 			for (int j = 0; j < A_i->nrecv_neighbors; ++j) {
@@ -328,10 +337,12 @@ namespace miniFE {
 							const int id_to_send_global = ptr_remote[k];
 
 							// Assert I have this element
+							#ifndef NDEBUG
 							assert(start_row <= id_to_send_global);
 							assert(id_to_send_global <= stop_row);
 
 							ptr_local[k] = id_to_send_global - start_row;
+							#endif
 						}
 
 					}
@@ -457,6 +468,8 @@ namespace miniFE {
 
 
 			for (size_t id = 0; id < numboxes; ++id) {
+
+				// This is a workaround
 				//rrd_free(A_array[id].external_index, sing->nexternals[id] * sizeof(int));
 
 				A_array[id].recv_neighbors =

@@ -83,7 +83,7 @@ std::ostream &array_to_stream(const T *in, size_t size,
 
 
 template <typename T>
-void print_vector(std::string vname, size_t size,const  T *vect ,std::ostream &stream)
+void print_vector(std::string vname, size_t size, const  T *vect ,std::ostream &stream)
 {
 	stream << vname << "["  << size << "]={";
 	for (size_t i = 0; i < size; ++i) {

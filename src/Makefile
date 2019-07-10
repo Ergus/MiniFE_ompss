@@ -29,7 +29,6 @@ nanos: CXXFLAGS := -O0 -g -std=c++11 -Wall --ompss-2 -DNANOS6  -DVERBOSE
 
 include make_targets
 
-
 # -DNANOS6 : for nanos6
 # -DNDEBUG : no debug
 # -DVERBOSE : more verbose messages
