@@ -66,11 +66,13 @@ namespace miniFE {
 	                        size_t Annz, size_t Anrows)
 	{
 		#ifdef VERBOSE
-		std::string filename = "VERB_get_recv_info_task_A_" + std::to_string(id) + ".verb";
-		std::ofstream stream(filename);
-		A->write(stream);
-		stream.close();
-		dbvprintf("Saved matrix %lu to file %s\n", id, filename.c_str());
+		{
+			std::string filename = "VERB_get_recv_info_task_A_" + std::to_string(id) + ".verb";
+			std::ofstream stream(filename);
+			A->write(stream);
+			stream.close();
+			dbvprintf("Saved matrix %lu to file %s\n", id, filename.c_str());
+		}
 		#endif
 
 		// First count and find the external elements
@@ -119,11 +121,22 @@ namespace miniFE {
 				}
 			}
 			// test if a processor was found for this ind
+			#ifndef NDEBUG
+			{
+				if (external_processor_vector[i] < 0) {
+					dbprintf("Error external_processor_vector[%d] = %d\n",
+					         i, external_processor_vector[i]);
+					dbprintf("There is not neighbor box for index : %d "
+					         "Valid range [%d -> %d]\n",
+					         cur_ind, start_row_array[0], stop_row_array[numboxes - 1]);
+				}
+			}
+			#endif
 			assert(external_processor_vector[i] >= 0);
 		}
 
 		// Filling the externals
-		int *external_local_index_local = (int *) rrl_malloc(num_external * sizeof(int));
+		int *external_local_index_local = (int *) malloc(num_external * sizeof(int));
 
 		A->external_index = (int *) rrl_malloc(num_external * sizeof(int));
 
@@ -177,10 +190,10 @@ namespace miniFE {
 			}
 		}
 
-		#pragma oss taskwait
+		// #pragma oss taskwait
 		// Release local memory
 		// Filling the externals
-		rrl_free(external_local_index_local, num_external * sizeof(int));
+		free(external_local_index_local);
 	}
 
 	// TODO try to substitute A with first private
@@ -361,12 +374,12 @@ namespace miniFE {
 		int *send_length_global = (int *) rrl_malloc(numboxes * numboxes * sizeof(int));
 
 		// Boundary information
-		#pragma oss task				\
-			in(A_array[0;numboxes])			\
-			out(nrows_array[0;numboxes])		\
-			out(start_row_array[0;numboxes])	\
-			out(stop_row_array[0;numboxes])		\
-			out(nrows_array[0;numboxes])
+		#pragma oss task					\
+			in(A_array[0; numboxes])			\
+			out(nrows_array[0; numboxes])			\
+			out(start_row_array[0; numboxes])		\
+			out(stop_row_array[0; numboxes])		\
+			out(nrows_array[0; numboxes])
 		{
 			for (size_t id = 0; id < numboxes; ++id) {
 				const size_t local_nrow = A_array[id].nrows;
@@ -384,7 +397,6 @@ namespace miniFE {
 		// Find the external elements (recv information).
 		// Scan the indices and transform to local
 		for (size_t id = 0; id < numboxes; ++id) {
-			//int *tmp_neighbors_local = &tmp_neighbors_global[numboxes * id];
 			CSRMatrix *A = &A_array[id];
 			A->recv_neighbors = &recv_neighbors_global[id * numboxes];
 			A->recv_length = &recv_length_global[id * numboxes];
@@ -443,7 +455,6 @@ namespace miniFE {
 
 			}
 
-			#pragma oss taskwait
 
 			for (size_t id = 0; id < numboxes; ++id) {
 				//rrd_free(A_array[id].external_index, sing->nexternals[id] * sizeof(int));
@@ -459,6 +470,7 @@ namespace miniFE {
 			}
 
 		}
+		#pragma oss taskwait
 
 		// Fill send Information
 		for (size_t id = 0; id < numboxes; ++id) {
@@ -511,7 +523,6 @@ namespace miniFE {
 				                  A_array[id].nsend_neighbors * sizeof(int));
 			}
 
-			#pragma oss taskwait
 
 			for (size_t id = 0; id < numboxes; ++id) {
 				A_array[id].send_neighbors =
@@ -525,6 +536,7 @@ namespace miniFE {
 			}
 
 		}
+		#pragma oss taskwait
 
 		for (size_t id = 0; id < numboxes; ++id) {
 

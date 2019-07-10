@@ -73,6 +73,10 @@
 // myproc will be like an ordinal taskid
 int main(int argc, char** argv)
 {
+	#ifndef NDEBUG
+	setbuf(stderr, NULL);
+	#endif
+
 	miniFE::Parameters params(argc, argv);
 
 	miniFE::timer_type start_time = miniFE::mytimer();

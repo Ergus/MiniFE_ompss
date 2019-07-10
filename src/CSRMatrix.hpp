@@ -442,40 +442,30 @@ namespace miniFE
 
 	// TODO there are some if only
 	#pragma oss task						\
-		inout(A[0])						\
-		inout(Arows[0; Anrows])					\
-		inout(Arow_offsets[0; Anrows + 1])			\
-		inout(Apacked_cols[0; Annz])				\
+		in(A[0])						\
+		in(Arows[0; Anrows])					\
+		in(Arow_offsets[0; Anrows + 1])			\
+		in(Apacked_cols[0; Annz])				\
 		inout(Apacked_coefs[0; Annz])				\
-		inout(*b)						\
+		in(b[0])						\
 		inout(b_coefs[0; b_local_size])				\
-		inout(bc_rows_array[0: bc_rows_size])
+		in(bc_rows_array[0: bc_rows_size])
 	void impose_dirichlet_task(
 		double prescribed_value,
-		CSRMatrix *A,
-		int *Arows,
-		int *Arow_offsets,
+		const CSRMatrix *A,
+		const int *Arows,
+		const int *Arow_offsets,
 		size_t Anrows,
-		int *Apacked_cols,
+		const int *Apacked_cols,
 		double *Apacked_coefs,
 		size_t Annz,
-		Vector *b,
+		const Vector *b,
 		double *b_coefs,
 		size_t b_local_size,
 		int global_nx, int global_ny, int global_nz,
 		const int *bc_rows_array,
 		size_t bc_rows_size)
 	{
-		#ifdef VERBOSE
-		{
-			std::string filename = "VERB_mesh_start_impose_dirichlet_"  +
-				std::to_string(A->id) + "_" +
-				std::to_string(prescribed_value) + ".verb";
-			std::ofstream stream(filename);
-			A->write(stream);
-			stream.close();
-		}
-		#endif
 
 		const int first_local_row = A->nrows > 0 ? A->rows[0] : 0;
 		const int last_local_row  = A->nrows > 0 ? A->rows[A->nrows - 1] : -1;

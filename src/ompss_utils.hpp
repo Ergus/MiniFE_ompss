@@ -124,11 +124,9 @@ static inline void ompss_memset_task(void *s, int c, size_t n)
 
 // Distributed Memory
 inline void *_rrd_malloc(size_t size, const char info[] = "")
-
 {
-	dbvprintf("%s %s(%lu) = ", info, __func__, size);
 	void *ret = nanos6_dmalloc(size, nanos6_equpart_distribution, 0, NULL);
-	dbvprintf("[%p -> %p]\n", ret, (char*)ret + size);
+	dbvprintf("%s %s(%lu) = [%p -> %p]\n", info, __func__, size,  ret, (char*)ret + size);
 
 	assert(size == 0 || ret != NULL);
 	return ret;
@@ -142,11 +140,10 @@ static inline void _rrd_free(void *in, size_t size, const char info[] = "")
 
 static inline void *_rrl_malloc(size_t size, const char info[] = "")
 {
-	dbvprintf("%s %s(%lu) = ", info, __PRETTY_FUNCTION__, size);
 	void *ret = nanos6_lmalloc(size);
+	dbvprintf("%s %s(%lu) = [%p -> %p]\n",
+	          info, __func__, size, ret, (char*)ret + size);
 	assert(size == 0 || ret != NULL);
-	dbvprintf(" [%p -> %p] size %ld\n",
-		 ret, (char*)ret + size, size);
 
 	return ret;
 }
@@ -191,7 +188,7 @@ size_t stl_to_global_task(T *vout, const Container &vin)
 
 	T *tmp = (T *) rrl_malloc(sz * sizeof(T));
 
-	dbvprintf("STL allocated %ld elements -> %p\n");
+	dbvprintf("STL copy %ld elements\n", sz);
 	// Copy from container to local memory, this is initialization any way.
 	size_t i = 0;
 	for (const T &a : vin)
@@ -274,7 +271,7 @@ size_t stl_to_global_task(T *vout, const Container &vin)
 	for (const T &a : vin)
 		vout[i++] = a;
 
-	dbvprintf("STL copy %ld elements -> %p\n", sz, (void *) vout);
+	dbvprintf("STL copy %ld elements\n", sz);
 
 	return sz;
 }
