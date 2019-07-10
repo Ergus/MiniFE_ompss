@@ -98,7 +98,6 @@ namespace miniFE {
 			return;
 
 		for (size_t id = 0; id < numboxes; ++id) {
-
 			CSRMatrix *A = &A_array[id];
 			Vector *x = &x_array[id];
 
@@ -124,6 +123,7 @@ namespace miniFE {
 			                  sing->send_buffer,
 			                  sing->global_nelements_to_send);
 		}
+		
 	}
 
 	int breakdown(double inner, const Vector *v, const Vector *w)
@@ -189,11 +189,6 @@ namespace miniFE {
 			init_vector_all(Ap_array, sing, numboxes, start, length);
 			init_vector_all(p_array, sing, numboxes, p_start, p_length);
 		}
-
-
-		for (size_t i = 0; i < numboxes; ++i) {
-		}
-
 
 		normr = 0;
 		double rtrans[numboxes];

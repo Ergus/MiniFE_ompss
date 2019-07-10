@@ -56,7 +56,7 @@ namespace miniFE
 		int *packed_cols;
 		double *packed_coefs;
 
-		int first_row;
+		int first_row, stop_row;
 		int num_cols;
 
 		// The send elements are not released here because they are in
@@ -80,7 +80,7 @@ namespace miniFE
 			  rows(nullptr), row_offsets(nullptr), //row_offsets_external(),
 			  global_nrows(-1), nrows(-1),
 			  nnz(0), packed_cols(nullptr), packed_coefs(nullptr),
-			  first_row(-1), num_cols(0),
+			  first_row(-1), stop_row(-1), num_cols(0),
 
 			  nrecv_neighbors(0), nexternals(0), recv_neighbors(nullptr),
 			  recv_ptr(nullptr), recv_length(nullptr), external_index(nullptr),
@@ -101,6 +101,7 @@ namespace miniFE
 			  packed_cols(in.packed_cols),
 			  packed_coefs(in.packed_coefs),
 			  first_row(in.first_row),
+			  stop_row(in.stop_row),
 			  num_cols(in.num_cols),
 
 			  nrecv_neighbors(in.nrecv_neighbors),
@@ -323,7 +324,8 @@ namespace miniFE
 		                  A->global_nrows,
 		                  A->nrows,
 		                  &(A->nnz),
-		                  &(A->first_row));
+		                  &(A->first_row),
+		                  &(A->stop_row));
 
 
 		#pragma oss taskwait

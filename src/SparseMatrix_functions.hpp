@@ -352,18 +352,20 @@ namespace miniFE
 		in(mesh[0])						\
 		in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])	\
 		out(nnz[0])						\
-		out(first_row[0])
+		out(first_row[0])					\
+		out(stop_row[0])
 	void init_offsets_task(int *row_coords,
-	                       int *rows,
-	                       int *row_offsets,
-	                       int *global_nodes,
-	                       const simple_mesh_description *mesh,
-	                       const std::pair<int,int> *mesh_ompss2_ids_to_rows,
-	                       size_t mesh_ids_to_rows_size,
-	                       size_t global_nrows,
-	                       size_t nrows,
-	                       size_t *nnz,
-	                       int *first_row)
+		int *rows,
+		int *row_offsets,
+		int *global_nodes,
+		const simple_mesh_description *mesh,
+		const std::pair<int,int> *mesh_ompss2_ids_to_rows,
+		size_t mesh_ids_to_rows_size,
+		size_t global_nrows,
+		size_t nrows,
+		size_t *nnz,
+		int *first_row,
+		int *stop_row)
 	{
 		const Box &box = mesh->extended_box;
 		size_t tnnz = 0;
@@ -406,6 +408,7 @@ namespace miniFE
 		row_offsets[nrows] = tnnz;
 		*nnz = tnnz;
 		*first_row = rows[0];
+		*stop_row = rows[nrows - 1];
 		assert(roffset == nrows);
 	}
 

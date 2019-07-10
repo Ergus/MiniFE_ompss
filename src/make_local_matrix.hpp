@@ -129,6 +129,10 @@ namespace miniFE {
 					dbprintf("There is not neighbor box for index : %d "
 					         "Valid range [%d -> %d]\n",
 					         cur_ind, start_row_array[0], stop_row_array[numboxes - 1]);
+					for (int j = 0; j < numboxes; ++j) {
+						printf("Box %d [%d %d]\n",
+						       j, start_row_array[j], stop_row_array);
+					}
 				}
 			}
 			#endif
@@ -337,12 +341,10 @@ namespace miniFE {
 							const int id_to_send_global = ptr_remote[k];
 
 							// Assert I have this element
-							#ifndef NDEBUG
 							assert(start_row <= id_to_send_global);
 							assert(id_to_send_global <= stop_row);
 
 							ptr_local[k] = id_to_send_global - start_row;
-							#endif
 						}
 
 					}
@@ -387,7 +389,6 @@ namespace miniFE {
 		// Boundary information
 		#pragma oss task					\
 			in(A_array[0; numboxes])			\
-			out(nrows_array[0; numboxes])			\
 			out(start_row_array[0; numboxes])		\
 			out(stop_row_array[0; numboxes])		\
 			out(nrows_array[0; numboxes])
@@ -398,12 +399,14 @@ namespace miniFE {
 
 				if (local_nrow > 0) {
 					start_row_array[id] = A_array[id].first_row;
-					stop_row_array[id] = A_array[id].rows[local_nrow - 1];
+					stop_row_array[id] = A_array[id].stop_row;
 				} else {
 					start_row_array[id] = -1;
 					stop_row_array[id] = -1;
 				}
 			}
+
+			
 		}
 		// Find the external elements (recv information).
 		// Scan the indices and transform to local
