@@ -177,6 +177,10 @@ namespace miniFE {
 			}
 		}
 
+		#ifdef VERBOSE
+		print_vector("A->external_index_" + std::to_string(id), num_external, A->external_index, std::cout);
+		std::cout << std::endl;
+		#endif
 		assert(count_proc <= numboxes);
 
 		A->nrecv_neighbors = count_proc;
@@ -209,7 +213,8 @@ namespace miniFE {
 		in(recv_neighbors_global[0; global_nrecv_neighbors])	\
 		in(recv_length_global[0; global_nrecv_neighbors])	\
 		out(send_neighbors_local[0; numboxes])			\
-		out(send_length_local[0; numboxes])
+		out(send_length_local[0; numboxes])			\
+		in(global_external_index[0; global_nexternals])
 	void get_send_info_task(CSRMatrix *A, size_t id,
 		size_t numboxes,
 		const int *nrecv_neighbors_global,
@@ -219,7 +224,11 @@ namespace miniFE {
 		const int *recv_length_global,
 
 		int *send_neighbors_local,
-		int *send_length_local)
+		int *send_length_local,
+
+		int global_nexternals,
+		int *global_external_index
+		)
 	{
 		#ifdef VERBOSE
 		{
@@ -231,7 +240,10 @@ namespace miniFE {
 			             recv_neighbors_global, stream);
 			print_vector("nrecv_neighbors_global", global_nrecv_neighbors,
 			             recv_length_global, stream);
+			print_vector("global_external_index", global_nexternals,
+			             global_external_index, stream);
 			stream.close();
+
 			dbvprintf("Saved vectors %lu to file %s\n", id, filename.c_str());
 		}
 		#endif
@@ -313,7 +325,8 @@ namespace miniFE {
 			print_vector("send_length_local", nsend_neighbors_local, send_length_local, stream);
 			print_vector("recv_neighbors_global", global_nrecv_neighbors, recv_neighbors_global, stream);
 			print_vector("recv_length_global", global_nrecv_neighbors, recv_length_global, stream);
-			print_vector("external_index_global", global_nexternals_global, external_index_global, stream);
+
+			print_vector("external_index_global", global_nexternals_global, external_index_global, std::cout);
 
 			stream.close();
 			dbvprintf("Saved vectors %lu to file %s\n", id, filename.c_str());
@@ -493,6 +506,7 @@ namespace miniFE {
 
 			}
 
+			#pragma oss taskwait
 
 			for (size_t id = 0; id < numboxes; ++id) {
 
@@ -510,7 +524,6 @@ namespace miniFE {
 			}
 
 		}
-		#pragma oss taskwait
 
 		// Fill send Information
 		for (size_t id = 0; id < numboxes; ++id) {
@@ -526,7 +539,11 @@ namespace miniFE {
 			                   sing->recv_neighbors,
 			                   sing->recv_length,
 			                   A->send_neighbors,
-			                   A->send_length);
+			                   A->send_length,
+
+			                   sing->global_nexternals,
+			                   sing->external_index
+				);
 		}
 
 		#pragma oss taskwait
@@ -563,7 +580,6 @@ namespace miniFE {
 				                  A_array[id].nsend_neighbors * sizeof(int));
 			}
 
-
 			for (size_t id = 0; id < numboxes; ++id) {
 				A_array[id].send_neighbors =
 					&(sing->send_neighbors[nsend_neighbors_offset[id]]);
@@ -576,7 +592,7 @@ namespace miniFE {
 			}
 
 		}
-		#pragma oss taskwait
+
 
 		for (size_t id = 0; id < numboxes; ++id) {
 

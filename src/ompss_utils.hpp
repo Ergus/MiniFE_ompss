@@ -85,7 +85,9 @@ std::ostream &array_to_stream(const T *in, size_t size,
 template <typename T>
 void print_vector(std::string vname, size_t size, const  T *vect ,std::ostream &stream)
 {
-	stream << vname << "["  << size << "]={";
+	stream << vname
+	       << "(" << vect << ":" << size * sizeof(T) << ")"
+	       << "[" << size << "]={";
 	for (size_t i = 0; i < size; ++i) {
 		if (i > 0)
 			stream << "; ";
@@ -132,13 +134,13 @@ inline void *_rrd_malloc(size_t size, const char info[] = "")
 	return ret;
 }
 
-static inline void _rrd_free(void *in, size_t size, const char info[] = "")
+inline void _rrd_free(void *in, size_t size, const char info[] = "")
 {
 	dbvprintf("%s %s(%p, %lu)\n", info, __PRETTY_FUNCTION__, in, size);
 	nanos6_dfree(in, size);
 }
 
-static inline void *_rrl_malloc(size_t size, const char info[] = "")
+inline void *_rrl_malloc(size_t size, const char info[] = "")
 {
 	void *ret = nanos6_lmalloc(size);
 	dbvprintf("%s %s(%lu) = [%p -> %p]\n",
@@ -148,20 +150,20 @@ static inline void *_rrl_malloc(size_t size, const char info[] = "")
 	return ret;
 }
 
-static inline void _rrl_free(void *in, size_t size, const char info[] = "")
+inline void _rrl_free(void *in, size_t size, const char info[] = "")
 {
 	dbvprintf("%s %s(%p, %lu)\n", info, __func__, in, size);
 	nanos6_lfree(in, size);
 }
 
-static inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
+inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 {
 	char *tin = (char *) pin;
 	char *tout = (char *) pout;
 
-	dbvprintf("Copy %ld bytes from %p -> %p\n", size, pin, pout);
 	#pragma oss task in(tin[0; size]) out(tout[0; size])
 	{
+		dbvprintf("Copy %ld bytes from %p -> %p\n", size, pin, pout);
 		memcpy(tout, tin, size);
 	}
 }
