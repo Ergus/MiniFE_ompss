@@ -99,7 +99,7 @@ namespace miniFE {
 					Acols[j] -= start_row;
 				} else { // Must find out if we have already set up this point
 					if (externals.find(cur_ind) == externals.end()) {
-						dbvprintf("Box %d: set element %d as external (not in [%d <-> %d])\n",
+						dbvprintf("Box %lu: set element %d as external (not in [%d <-> %d])\n",
 						          id, cur_ind, start_row, stop_row);
 
 						externals[cur_ind] = num_external++;
@@ -127,14 +127,14 @@ namespace miniFE {
 			#ifndef NDEBUG
 			{
 				if (external_processor_vector[i] < 0) {
-					dbprintf("Error external_processor_vector[%d] = %d\n",
+					dbprintf("Error external_processor_vector[%lu] = %d\n",
 					         i, external_processor_vector[i]);
 					dbprintf("There is not neighbor box for index : %d "
 					         "Valid range [%d -> %d]\n",
 					         cur_ind, start_row_array[0], stop_row_array[numboxes - 1]);
-					for (int j = 0; j < numboxes; ++j) {
-						printf("Box %d [%d %d]\n",
-						       j, start_row_array[j], stop_row_array);
+					for (size_t j = 0; j < numboxes; ++j) {
+						printf("Box %lu [%d %d]\n",
+						       j, start_row_array[j], stop_row_array[j]);
 					}
 				}
 			}
@@ -359,23 +359,23 @@ namespace miniFE {
 				if ((size_t)A_i->recv_neighbors[j] == id) {  // If I am the sender
 
 					// How many elements I will send to it
-					const int nsend_to_i = A_i->recv_length[j];
+					const int nsend_to_i_j = A_i->recv_length[j];
+					double **recv_ptr_i_j = &(A_i->recv_ptr[j]);
 
-					#pragma oss task			\
-						in(A_i[0])			\
-						out(A_i->recv_ptr[j])		\
-						in(ptr_remote[0; nsend_to_i]) 	\
-						out(ptr_local[0; nsend_to_i])
+					#pragma oss task		\
+						out(recv_ptr_i_j[0])	\
+						in(ptr_remote[0; nsend_to_i_j]) \
+						out(ptr_local[0; nsend_to_i_j])
 					{
 						// inform the remote about my pointer
-						A_i->recv_ptr[j] = ptr_for_remote;
+						*recv_ptr_i_j = ptr_for_remote;
 
-						for (int k = 0; k < nsend_to_i; ++k) {
+						for (int k = 0; k < nsend_to_i_j; ++k) {
 							const int id_to_send_global = ptr_remote[k];
 							#ifndef NDEBUG
 							if ((start_row > id_to_send_global) ||
 							    (id_to_send_global > stop_row)) {
-								dbprintf("Error Box %d: element %d to box %d is not in [%d %d] (it %d)\n",
+								dbprintf("Error Box %lu: element %d to box %lu is not in [%d %d] (it %d)\n",
 								         id, id_to_send_global, send_neighbor_i, start_row, stop_row, k);
 							}
 							// Assert I have this element
@@ -388,8 +388,8 @@ namespace miniFE {
 
 					}
 					// move local pointers
-					ptr_local += nsend_to_i;
-					ptr_for_remote += nsend_to_i;
+					ptr_local += nsend_to_i_j;
+					ptr_for_remote += nsend_to_i_j;
 				}
 				// move remote pointer because it is not me
 				ptr_remote += A_i->recv_length[j];
@@ -410,6 +410,9 @@ namespace miniFE {
 		if (numboxes < 2) {
 			A_array[0].num_cols = A_array[0].nrows;
 			A_array[0].has_local_indices = true;
+
+			sing->allocate_recv(0, 0);
+			sing->allocate_send(0, 0);
 			return;
 		}
 
@@ -515,7 +518,7 @@ namespace miniFE {
 
 			}
 
-			#pragma oss taskwait
+			//#pragma oss taskwait
 
 			for (size_t id = 0; id < numboxes; ++id) {
 

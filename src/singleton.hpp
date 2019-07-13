@@ -33,7 +33,7 @@ public:
 	int *elements_to_send;      // full list of local indices
 	double *send_buffer;        // send buffer
 
-	int nvectors;
+	size_t nvectors;
 	int vector_global_size[MAXVECTORS]; // TODO: this is totally arbitrary
 	double *vector_coefs[MAXVECTORS];
 
