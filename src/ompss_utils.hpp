@@ -161,6 +161,9 @@ inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 	char *tin = (char *) pin;
 	char *tout = (char *) pout;
 
+	assert(tin != nullptr);
+	assert(tout != nullptr);
+
 	#pragma oss task in(tin[0; size]) out(tout[0; size])
 	{
 		dbvprintf("Copy %ld bytes from %p -> %p\n", size, pin, pout);

@@ -361,9 +361,10 @@ namespace miniFE {
 					// How many elements I will send to it
 					const int nsend_to_i = A_i->recv_length[j];
 
-					#pragma oss task		\
-						out(A_i->recv_ptr[j])	\
-						in(ptr_remote[0; nsend_to_i]) \
+					#pragma oss task			\
+						in(A_i[0])			\
+						out(A_i->recv_ptr[j])		\
+						in(ptr_remote[0; nsend_to_i]) 	\
 						out(ptr_local[0; nsend_to_i])
 					{
 						// inform the remote about my pointer
@@ -445,6 +446,7 @@ namespace miniFE {
 			}
 
 		}
+		
 		// Find the external elements (recv information).
 		// Scan the indices and transform to local
 		for (size_t id = 0; id < numboxes; ++id) {
@@ -486,6 +488,8 @@ namespace miniFE {
 			}
 
 			// this allocates the arrays internally with dmalloc
+			assert(global_nrecv_neighbors > 0);
+			std::cout << "allocating " << nexternals << " elements for external_index" << std::endl;
 			sing->allocate_recv(global_nrecv_neighbors, nexternals);
 
 			// The next extra copy enables a latter optimization, it
@@ -500,7 +504,12 @@ namespace miniFE {
 				                  A_array[id].recv_length,
 				                  sing->nrecv_neighbors[id] * sizeof(int));
 
-				ompss_memcpy_task(&(sing->external_index[nexternals_offset[id]]),
+				void *pout = (void *)&(sing->external_index[nexternals_offset[id]]);
+				std::cout << "Copying " << sing->nexternals[id]
+					<< " elements in sing->external_index["
+					<< nexternals_offset[id] << "] ("
+					<< pout << ")" << std::endl;
+				ompss_memcpy_task(pout,
 				                  A_array[id].external_index,
 				                  sing->nexternals[id] * sizeof(int));
 

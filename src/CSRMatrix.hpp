@@ -246,6 +246,7 @@ namespace miniFE
 
 	inline void write_task(std::string filename, const CSRMatrix &Min, size_t id)
 	{
+		/*
 		CSRMatrix Mcopy(Min);  // This is a work around for the dependency issue
 
 		#pragma oss task					\
@@ -274,6 +275,7 @@ namespace miniFE
 		}
 
 		#pragma oss taskwait
+		*/
 	}
 
 

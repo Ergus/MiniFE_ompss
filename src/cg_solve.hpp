@@ -59,7 +59,7 @@ namespace miniFE {
 	}
 
 	#pragma oss task						\
-		in(*A)							\
+		in(A[0])						\
 		in(Arecv_ptr[0; Anrecv_neighbors])			\
 		in(Arecv_length[0; Anrecv_neighbors])			\
 		out(x_start[0; Anexternals])				\
@@ -79,6 +79,7 @@ namespace miniFE {
 		for (int i = 0; i < Anrecv_neighbors; ++i) {
 
 			// This creates task internally
+			assert(Arecv_ptr[i] != NULL);
 			ompss_memcpy_task(local_iter, Arecv_ptr[i], Arecv_length[i] * sizeof(double));
 
 			local_iter += Arecv_length[i];

@@ -75,30 +75,34 @@ public:
 		rrl_free(nrecv_neighbors, numboxes * sizeof(int));
 		rrl_free(nexternals, numboxes * sizeof(int));
 
-		assert(global_nrecv_neighbors > 0);
-		rrd_free(recv_neighbors, global_nrecv_neighbors * sizeof(int));
-		rrd_free(recv_ptr, global_nrecv_neighbors * sizeof(double *));
-		rrd_free(recv_length, global_nrecv_neighbors * sizeof(int));
+		if (global_nrecv_neighbors > 0) {
+			rrd_free(recv_neighbors, global_nrecv_neighbors * sizeof(int));
+			rrd_free(recv_ptr, global_nrecv_neighbors * sizeof(double *));
+			rrd_free(recv_length, global_nrecv_neighbors * sizeof(int));
+		}
 
-		assert(global_nexternals);
-		rrd_free(external_index, global_nexternals * sizeof(int));
+		if (global_nexternals)
+			rrd_free(external_index, global_nexternals * sizeof(int));
 
 		// send
 		rrl_free(nsend_neighbors, numboxes * sizeof(int));
 		rrl_free(nelements_to_send, numboxes * sizeof(int));
 
-		assert(global_nsend_neighbors > 0);
-		rrd_free(send_neighbors, global_nsend_neighbors * sizeof(int));
-		rrd_free(send_length, global_nsend_neighbors * sizeof(int));
+		if (global_nsend_neighbors) {
+			rrd_free(send_neighbors, global_nsend_neighbors * sizeof(int));
+			rrd_free(send_length, global_nsend_neighbors * sizeof(int));
+		}
 
-		assert(global_nelements_to_send > 0);
-		rrd_free(elements_to_send, global_nelements_to_send * sizeof(int));
-		rrd_free(send_buffer, global_nelements_to_send * sizeof(double));
+		if (global_nelements_to_send > 0) {
+			rrd_free(elements_to_send, global_nelements_to_send * sizeof(int));
+			rrd_free(send_buffer, global_nelements_to_send * sizeof(double));
+		}
 
 		for (size_t i = 0; i < nvectors; ++i) {
-			assert(vector_coefs[i] != nullptr);
-			assert(vector_global_size[i] >= 0);
-			rrd_free(vector_coefs[i], vector_global_size[nvectors] * sizeof(double));
+			if (vector_coefs[i] != nullptr) {
+				assert(vector_global_size[i] >= 0);
+				rrd_free(vector_coefs[i], vector_global_size[nvectors] * sizeof(double));
+			}
 		}
 
 	}

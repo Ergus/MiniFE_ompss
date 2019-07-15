@@ -170,6 +170,7 @@ namespace miniFE
 			ydoc.get("Matrix structure generation")->add("Mat-struc-gen Time", gen_structure);
 		}
 
+		assert(numboxes > 0);
 		singleton sing(numboxes);
 
 		// Declare vector objects array

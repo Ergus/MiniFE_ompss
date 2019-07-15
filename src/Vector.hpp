@@ -173,6 +173,8 @@ namespace miniFE
 
 	inline void write_task(std::string filename, const Vector &Min, size_t id)
 	{
+		return;
+		/*
 		Vector Mcopy(Min);
 
 		#pragma oss task					\
@@ -192,6 +194,7 @@ namespace miniFE
 		}
 
 		#pragma oss taskwait
+		*/
 	}
 
 
