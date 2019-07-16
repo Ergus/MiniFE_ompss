@@ -9,3 +9,4 @@ compile_commands.json
 miniFE_info.hpp
 VERB*.verb
 vgcore.*
+core.miniFE*

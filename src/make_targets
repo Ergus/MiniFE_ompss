@@ -17,6 +17,8 @@ HEADERS_DIRS := . ../utils ../fem
 HEADERS := $(wildcard *.hpp ../utils/*.hpp ../fem/*.hpp) miniFE_info.hpp
 OBJS := $(notdir $(patsubst %.cpp,%.o,$(wildcard *.cpp) $(wildcard ../utils/*.cpp)))
 
+OBJS := $(filter-out mcxx_%.o,$(OBJS))
+
 vpath %.hpp $(HEADERS_DIRS)
 
 CPPFLAGS += $(addprefix -I ,$(HEADERS_DIRS))
