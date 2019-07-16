@@ -137,32 +137,6 @@ namespace miniFE
 		                  elem_data.elem_source_vector);
 	}
 
-	#ifdef MINIFE_HAVE_TBB
-	template<typename MatrixType>
-	void sum_in_elem_matrix(size_t num, const int *indices, const double* coefs,
-	                        LockingMatrix<MatrixType>& mat)
-	{
-		size_t offset = 0;
-
-		for(size_t i=0; i<num; ++i) {
-			mat.sum_in(indices[i], num, &indices[0], &coefs[offset]);
-			offset += num;
-		}
-	}
-
-	template<typename GlobalOrdinal, typename Scalar,
-	         typename MatrixType, typename VectorType>
-	void
-	sum_into_global_linear_system(ElemData<GlobalOrdinal,Scalar>& elem_data,
-	                              LockingMatrix<MatrixType>& A, LockingVector<VectorType>& b)
-	{
-		sum_in_elem_matrix(elem_data.nodes_per_elem, elem_data.elem_node_ids,
-		                   elem_data.elem_diffusion_matrix, A);
-		sum_into_vector(elem_data.nodes_per_elem, elem_data.elem_node_ids,
-		                elem_data.elem_source_vector, b);
-	}
-	#endif
-
 	template<typename MatrixType>
 	void
 	add_to_diagonal(typename MatrixType::ScalarType value, MatrixType& mat)

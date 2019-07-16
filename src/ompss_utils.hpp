@@ -83,7 +83,7 @@ std::ostream &array_to_stream(const T *in, size_t size,
 
 
 template <typename T>
-void print_vector(std::string vname, size_t size, const  T *vect ,std::ostream &stream)
+std::ostream &print_vector(std::string vname, size_t size, const  T *vect, std::ostream &stream = std::cout)
 {
 	stream << vname
 	       << "(" << vect << ":" << size * sizeof(T) << ")"
@@ -94,7 +94,9 @@ void print_vector(std::string vname, size_t size, const  T *vect ,std::ostream &
 
 		stream << vect[i];
 	}
-	stream << " }\n";
+	stream << " }";
+
+	return stream;
 }
 
 template <typename _Key, typename _Tp>
@@ -128,7 +130,6 @@ inline void reduce_sum_task(double *vout, const double *vin, size_t size)
 #pragma oss task in(vin[0; size]) out(vout[0])
 inline void reduce_sum_int_task(int *vout, const int *vin, size_t size)
 {
-
 	*vout = 0;
 	for (size_t i = 0; i < size; ++i)
 		*vout += vin[i];

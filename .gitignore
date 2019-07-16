@@ -10,3 +10,4 @@ miniFE_info.hpp
 VERB*.verb
 vgcore.*
 core.miniFE*
+mcxx_*.cpp

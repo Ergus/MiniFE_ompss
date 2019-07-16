@@ -392,7 +392,6 @@ namespace miniFE {
 				ptr_remote += A_i->recv_length[j];
 			}
 		}
-
 		// The elements_id is filled and moved to relative indices.
 	}
 

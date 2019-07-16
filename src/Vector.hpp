@@ -80,7 +80,11 @@ namespace miniFE
 			local_size = local_sz;
 			coefs = ptr;
 
-			//ompss_memset_task(coefs, 0, local_sz * sizeof(double));
+			#pragma oss task out(ptr[0; local_sz])
+			{
+				for (size_t i = 0; i < 0; ++i)
+					ptr[i] = 0.0;
+			}
 		}
 
 		void sum_into_vector(size_t num_indices,
@@ -171,15 +175,9 @@ namespace miniFE
 		return stream;
 	}
 
-	inline void write_task(std::string filename, const Vector &Min, size_t id)
+	inline void write_task(std::string filename, const Vector *Min, size_t id)
 	{
-		return;
-		/*
-		Vector Mcopy(Min);
-
-		#pragma oss task					\
-			in(Mcopy)						\
-			in(Mcopy.coefs[0; Mcopy.local_size])
+		#pragma oss task in(Min[0]) in(Min->coefs[0; Min->local_size])
 		{
 			std::ofstream stream;
 
@@ -188,13 +186,10 @@ namespace miniFE
 			else
 				stream.open(filename, std::ofstream::app);
 
-			Mcopy.write(stream);
+			Min->write(stream);
 
 			stream.close();
 		}
-
-		#pragma oss taskwait
-		*/
 	}
 
 

@@ -396,12 +396,12 @@ namespace miniFE
 	#pragma oss task						\
 		in(*mesh)		 				\
 		in(mesh_ompss2_ids_to_rows[0; mesh_i_ids_to_rows_size])	\
-		inout(*A)						\
+		inout(A[0])						\
 		inout(A_rows[0; A_nrows])				\
 		inout(A_row_offsets[0; A_nrows + 1])			\
 		inout(A_packed_cols[0; A_nnz])				\
 		inout(A_packed_coefs[0; A_nnz])				\
-		inout(*b)						\
+		inout(b[0])						\
 		inout(b_coefs[0; b_local_size])
 	inline void assemble_FE_data_task(size_t id,
 		const simple_mesh_description *mesh,

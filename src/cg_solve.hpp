@@ -166,7 +166,6 @@ namespace miniFE {
 	                  singleton *sing)
 	{
 
-		timer_type t0 = 0, tWAXPY[numboxes], tDOT[numboxes], tMATVEC[numboxes];
 		timer_type total_time = mytimer();
 
 		Vector *r_array = new Vector[numboxes];
@@ -186,10 +185,6 @@ namespace miniFE {
 
 				p_start[i] = 0;
 				p_length[i] = A_array[i].num_cols;
-
-				tWAXPY[i] = 0.0;
-				tDOT[i] = 0.0;
-				tMATVEC[i] = 0.0;
 			}
 
 			init_vector_all(r_array, sing, numboxes, start, length);
@@ -208,46 +203,24 @@ namespace miniFE {
 		if (print_freq < 1)
 			print_freq = 1;
 
-		//TICK();
 		for (size_t i = 0; i < numboxes; ++i) {
 			rtrans[i] = 0;
 			assert(A_array[i].has_local_indices);
 
 			waxpby_task(1.0, &x_array[i], 0.0, &x_array[i], &p_array[i]);
-
-			#ifdef VERBOSE
-			std::string filename = "VERB_p_1_"  + std::to_string(i) + ".verb";
-			write_task(filename ,p_array[i], i);
-			#endif
-
 		}
-		//TOCK(tWAXPY[0]);
 
-		// This creates tasks internally
 		exchange_externals_all(A_array, p_array, numboxes, sing);
 
 		for (size_t i = 0; i < numboxes; ++i) {
 			// Tasks here
 			// in A_array[i] (full)
-			//TICK();
-			#ifdef VERBOSE
-			std::string filename1 = "VERB_p_2_"  + std::to_string(i) + ".verb";
-			write_task(filename1 ,p_array[i], i);
-			std::string filename2 = "VERB_A_2_"  + std::to_string(i) + ".verb";
-			write_task(filename2 ,A_array[i], i);
-			#endif
 
 			matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
-			//TOCK(tMATVEC[i]);
 
-			//TICK();
 			waxpby_task(1.0, &b_array[i], -1.0, &Ap_array[i], &r_array[i]);
-			//TOCK(tWAXPY[i]);
 
-
-			//TICK();
 			dot2_task(&r_array[i], &rtrans[i]);
-			//TOCK(tDOT[i]);
 		}
 
 		// TODO: taskwait here
@@ -275,19 +248,15 @@ namespace miniFE {
 				for (size_t i = 0; i < numboxes; ++i)
 					dot2_task(&r_array[i], &rtrans[i]);
 
-
 				reduce_sum_task(&rtrans_global, rtrans, numboxes);
 				#pragma oss taskwait
 
 				const double beta = rtrans_global / oldrtrans;
 
 				for (size_t i = 0; i < numboxes; ++i) {
-					{
-						//TICK();
-						waxpby_task(1.0, &r_array[i], beta, &p_array[i], &p_array[i]);
-						//TOCK(tWAXPY[i]);
-					}
+					waxpby_task(1.0, &r_array[i], beta, &p_array[i], &p_array[i]);
 				}
+
 			}
 
 			// rtrans_global is here because of tw above
@@ -301,13 +270,9 @@ namespace miniFE {
 			// This creates tasks internally
 			exchange_externals_all(A_array, p_array, numboxes, sing);
 			for (size_t i = 0; i < numboxes; ++i) {
-				//TICK();
 				matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
-				//TOCK(tMATVEC[i]);
 
-				//TICK();
 				dot_task(&Ap_array[i], &p_array[i], &p_ap_dot[i]);
-				//TOCK(tDOT[i]);
 			}
 
 			reduce_sum_task(&p_ap_dot_global, p_ap_dot, numboxes);
@@ -340,9 +305,6 @@ namespace miniFE {
 					         p_ap_dot_global, breakdown_global);
 
 					//update the timers before jumping out.
-					reduce_sum_task(&my_cg_times[WAXPY], tWAXPY, numboxes);
-					reduce_sum_task(&my_cg_times[DOT], tDOT, numboxes);
-					reduce_sum_task(&my_cg_times[MATVEC], tMATVEC, numboxes);
 					my_cg_times[TOTAL] = mytimer() - total_time;
 
 					#pragma oss taskwait
@@ -362,22 +324,15 @@ namespace miniFE {
 			#endif
 
 			for (size_t i = 0; i < numboxes; ++i) {
-				// Task here
-				TICK();
 				waxpby_task(1.0, &x_array[i], alpha, &p_array[i], &x_array[i]);
 
-				// Task here
 				waxpby_task(1.0, &r_array[i], -alpha, &Ap_array[i], &r_array[i]);
-				TOCK(tWAXPY[i]);
+
 			}
 
-			#pragma oss taskwait
 			num_iters = k;
 		} // for k
 
-		reduce_sum_task(&my_cg_times[WAXPY], tWAXPY, numboxes);
-		reduce_sum_task(&my_cg_times[DOT], tDOT, numboxes);
-		reduce_sum_task(&my_cg_times[MATVEC], tMATVEC, numboxes);
 		#pragma oss taskwait
 
 		my_cg_times[TOTAL] = mytimer() - total_time;
