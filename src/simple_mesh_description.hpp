@@ -157,9 +157,6 @@ namespace miniFE
 		//we will impose a 0 boundary-condition on faces x=0, y=0, z=0, y=1, z=1
 		//we will impose a 1 boundary-condition on face x=1
 
-		#ifndef NDEBUG
-		std::cout << std::endl;
-		#endif
 		const int X = 0;
 		const int Y = 1;
 		const int Z = 2;

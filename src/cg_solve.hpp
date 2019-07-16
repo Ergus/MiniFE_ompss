@@ -79,7 +79,14 @@ namespace miniFE {
 		for (int i = 0; i < Anrecv_neighbors; ++i) {
 
 			// This creates task internally
+			#ifndef NDEBUG
+			if (!Arecv_ptr[i]) {
+				dbprintf("Error in vector A.recv_ptr[%d]\n", i);
+				print_vector("Arecv_ptr", Anrecv_neighbors, Arecv_ptr, std::cout);
+			}
 			assert(Arecv_ptr[i] != NULL);
+			#endif
+
 			ompss_memcpy_task(local_iter, Arecv_ptr[i], Arecv_length[i] * sizeof(double));
 
 			local_iter += Arecv_length[i];
@@ -124,7 +131,6 @@ namespace miniFE {
 			                  sing->send_buffer,
 			                  sing->global_nelements_to_send);
 		}
-		
 	}
 
 	int breakdown(double inner, const Vector *v, const Vector *w)
@@ -323,7 +329,7 @@ namespace miniFE {
 				}
 
 				// TODO taskwait here, because this must run locally.
-				reduce_sum_task(&breakdown_global, breakdown_array, numboxes);
+				reduce_sum_int_task(&breakdown_global, breakdown_array, numboxes);
 				#pragma oss taskwait
 
 				if (p_ap_dot_global < 0 || breakdown_global) {

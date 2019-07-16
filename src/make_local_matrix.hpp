@@ -213,8 +213,7 @@ namespace miniFE {
 		in(recv_neighbors_global[0; global_nrecv_neighbors])	\
 		in(recv_length_global[0; global_nrecv_neighbors])	\
 		out(send_neighbors_local[0; numboxes])			\
-		out(send_length_local[0; numboxes])			\
-		in(global_external_index[0; global_nexternals])
+		out(send_length_local[0; numboxes])
 	void get_send_info_task(CSRMatrix *A, size_t id,
 		size_t numboxes,
 		const int *nrecv_neighbors_global,
@@ -224,10 +223,7 @@ namespace miniFE {
 		const int *recv_length_global,
 
 		int *send_neighbors_local,
-		int *send_length_local,
-
-		int global_nexternals,
-		int *global_external_index
+		int *send_length_local
 		)
 	{
 		#ifdef VERBOSE
@@ -240,8 +236,6 @@ namespace miniFE {
 			             recv_neighbors_global, stream);
 			print_vector("nrecv_neighbors_global", global_nrecv_neighbors,
 			             recv_length_global, stream);
-			print_vector("global_external_index", global_nexternals,
-			             global_external_index, stream);
 			stream.close();
 
 			dbvprintf("Saved vectors %lu to file %s\n", id, filename.c_str());
@@ -280,19 +274,20 @@ namespace miniFE {
 
 		A->nsend_neighbors = nsend_neighbors;
 		A->nelements_to_send = nelements_to_send;
+		A->num_cols = A->nrows + A->nexternals;
+		A->has_local_indices = true;
+
 	}
 
 	// TODO: possible error here
-	#pragma oss task in(A_array[0: id - 1])				\
-		inout(A_array[id])					\
-		in(A_array[id + 1: numboxes - 1])			\
+	#pragma oss task in(A_array[0: numboxes])			\
 									\
 		in(send_neighbors_local[0; nsend_neighbors_local])	\
 		in(send_length_local[0; nsend_neighbors_local])		\
 									\
 		in(recv_neighbors_global[0; global_nrecv_neighbors])	\
 		in(recv_length_global[0; global_nrecv_neighbors])	\
-		weakout(recv_ptr_global[0; global_nrecv_neighbors])	\
+		inout(recv_ptr_global[0; global_nrecv_neighbors])	\
 									\
 		in(external_index_global[0; global_nexternals_global])	\
 									\
@@ -326,7 +321,7 @@ namespace miniFE {
 			print_vector("recv_neighbors_global", global_nrecv_neighbors, recv_neighbors_global, stream);
 			print_vector("recv_length_global", global_nrecv_neighbors, recv_length_global, stream);
 
-			print_vector("external_index_global", global_nexternals_global, external_index_global, std::cout);
+			//print_vector("external_index_global", global_nexternals_global, external_index_global, std::cout);
 
 			stream.close();
 			dbvprintf("Saved vectors %lu to file %s\n", id, filename.c_str());
@@ -350,7 +345,7 @@ namespace miniFE {
 			assert(send_neighbor_i != id);    // I don't send to myself
 			assert(send_neighbor_i < numboxes);
 
-			const CSRMatrix *A_i = &A_array[send_neighbor_i];
+			CSRMatrix *A_i = &A_array[send_neighbor_i];
 
 			// Where the neighbor has the external indices
 			const int *ptr_remote = A_i->external_index;
@@ -360,15 +355,17 @@ namespace miniFE {
 
 					// How many elements I will send to it
 					const int nsend_to_i_j = A_i->recv_length[j];
-					double **recv_ptr_i_j = &(A_i->recv_ptr[j]);
 
 					#pragma oss task		\
-						out(recv_ptr_i_j[0])	\
+						in(A_i[0])		\
+						out(A_i->recv_ptr[j; 1])	\
 						in(ptr_remote[0; nsend_to_i_j]) \
-						out(ptr_local[0; nsend_to_i_j])
+					 	out(ptr_local[0; nsend_to_i_j])
 					{
 						// inform the remote about my pointer
-						*recv_ptr_i_j = ptr_for_remote;
+						A_i->recv_ptr[j] = ptr_for_remote;
+						dbvprintf("Setting A_[%zu]->recv_ptr[%d](%p) = %p\n",
+						          send_neighbor_i, j, &(A_i->recv_ptr[j]), A_i->recv_ptr[j]);
 
 						for (int k = 0; k < nsend_to_i_j; ++k) {
 							const int id_to_send_global = ptr_remote[k];
@@ -397,8 +394,6 @@ namespace miniFE {
 		}
 
 		// The elements_id is filled and moved to relative indices.
-		A->num_cols = nrows + A->nexternals;
-		A->has_local_indices = true;
 	}
 
 	//=================================================================
@@ -449,7 +444,7 @@ namespace miniFE {
 			}
 
 		}
-		
+
 		// Find the external elements (recv information).
 		// Scan the indices and transform to local
 		for (size_t id = 0; id < numboxes; ++id) {
@@ -502,23 +497,13 @@ namespace miniFE {
 				ompss_memcpy_task(&(sing->recv_neighbors[nrecv_neighbors_offset[id]]),
 				                  A_array[id].recv_neighbors,
 				                  sing->nrecv_neighbors[id] * sizeof(int));
-
 				ompss_memcpy_task(&(sing->recv_length[nrecv_neighbors_offset[id]]),
 				                  A_array[id].recv_length,
 				                  sing->nrecv_neighbors[id] * sizeof(int));
-
-				void *pout = (void *)&(sing->external_index[nexternals_offset[id]]);
-				std::cout << "Copying " << sing->nexternals[id]
-					<< " elements in sing->external_index["
-					<< nexternals_offset[id] << "] ("
-					<< pout << ")" << std::endl;
-				ompss_memcpy_task(pout,
+				ompss_memcpy_task(&(sing->external_index[nexternals_offset[id]]),
 				                  A_array[id].external_index,
 				                  sing->nexternals[id] * sizeof(int));
-
 			}
-
-			//#pragma oss taskwait
 
 			for (size_t id = 0; id < numboxes; ++id) {
 
@@ -531,6 +516,7 @@ namespace miniFE {
 					&(sing->recv_length[nrecv_neighbors_offset[id]]);
 				A_array[id].recv_ptr =
 					&(sing->recv_ptr[nrecv_neighbors_offset[id]]);
+
 				A_array[id].external_index =
 					&(sing->external_index[nexternals_offset[id]]);
 			}
@@ -551,10 +537,7 @@ namespace miniFE {
 			                   sing->recv_neighbors,
 			                   sing->recv_length,
 			                   A->send_neighbors,
-			                   A->send_length,
-
-			                   sing->global_nexternals,
-			                   sing->external_index
+			                   A->send_length
 				);
 		}
 
@@ -576,7 +559,6 @@ namespace miniFE {
 
 				nelements_to_send_offset[id] = global_nelements_to_send;
 				global_nelements_to_send += A_array[id].nelements_to_send;
-
 			}
 
 			// this allocated the arrays internally
@@ -602,7 +584,6 @@ namespace miniFE {
 				A_array[id].send_buffer =
 					&(sing->send_buffer[nelements_to_send_offset[id]]);
 			}
-
 		}
 
 
@@ -610,8 +591,7 @@ namespace miniFE {
 
 			CSRMatrix *A = &A_array[id];
 
-			set_send_info_task(A_array, id,
-			                   numboxes,
+			set_send_info_task(A_array, id, numboxes,
 
 			                   A->nsend_neighbors,
 			                   A->send_neighbors,

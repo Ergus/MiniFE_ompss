@@ -111,6 +111,35 @@ inline void write_all(std::string &filename, const T *in_array, size_t numboxes)
 		write_task(filename, in_array[id], id);
 }
 
+#pragma oss task in(vin[0; size]) out(vout[0])
+inline void reduce_sum_task(double *vout, const double *vin, size_t size)
+{
+	*vout = 0;
+	for (size_t i = 0; i < size; ++i)
+		*vout += vin[i];
+
+	#ifndef NDEBUG
+	print_vector("Reducing: ", size, vin, std::cout);
+	std::cout << *vout << std::endl;
+	#endif
+
+}
+
+#pragma oss task in(vin[0; size]) out(vout[0])
+inline void reduce_sum_int_task(int *vout, const int *vin, size_t size)
+{
+
+	*vout = 0;
+	for (size_t i = 0; i < size; ++i)
+		*vout += vin[i];
+
+	#ifndef NDEBUG
+	print_vector("Reducing: ", size, vin, std::cout);
+	std::cout << *vout << std::endl;
+	#endif
+}
+
+
 #ifdef NANOS6 // ===============================================================
 
 // Nanos6 defined (this can go in a file)
@@ -168,17 +197,6 @@ inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 	{
 		dbvprintf("Copy %ld bytes from %p -> %p\n", size, pin, pout);
 		memcpy(tout, tin, size);
-	}
-}
-
-template <typename T>
-void reduce_sum_task(T *vout, const T *vin, size_t size)
-{
-	#pragma oss task in(vin[0; size]) out(*vout)
-	{
-		*vout = 0;
-		for (size_t i = 0; i < size; ++i)
-			*vout += vin[i];
 	}
 }
 
@@ -256,14 +274,6 @@ static inline void _rrl_free(void *in, size_t size, const char info[] = "")
 inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 {
 	memcpy(pout, pin, size);
-}
-
-template <typename T>
-void reduce_sum_task(T *out, const T *in, size_t size)
-{
-	*out = 0;
-	for (size_t i = 0; i < size; ++i)
-		*out += in[i];
 }
 
 template<typename T, typename Container>

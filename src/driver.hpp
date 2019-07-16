@@ -127,7 +127,7 @@ namespace miniFE
 			}
 		}
 
-		global_box.write();
+		std::cout << "Global Box: " << global_box << std::endl;
 
 		simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
 
@@ -294,7 +294,7 @@ namespace miniFE
 		#endif
 
 		size_t global_nnz;
-		compute_matrix_stats(A_array, numboxes, ydoc, global_nnz);
+		compute_matrix_stats_task(A_array, numboxes, ydoc, &global_nnz);
 
 		//Prepare to perform conjugate gradient solve:
 

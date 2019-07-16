@@ -53,6 +53,20 @@ namespace miniFE
 
 		err_info() : err(0.0)
 		{}
+
+		// Arrays allocations (boxes can go in local memory)
+		static void* operator new[](std::size_t sz)
+		{
+			void * const tmp = rrl_malloc(sz);
+			dbvprintf("Calling: %s, size: %lu\n", __PRETTY_FUNCTION__, sz);
+			return tmp;
+		}
+
+		static void operator delete[](void* ptr, std::size_t sz)
+		{
+			dbvprintf("Calling: %s, address %p size: %lu\n", __PRETTY_FUNCTION__, ptr, sz);
+			return rrl_free(ptr, sz);
+		}
 	};
 
 	inline std::ostream& operator <<(std::ostream &stream, const err_info &in) {
@@ -82,17 +96,17 @@ namespace miniFE
 	                           double tolerance,
 	                           bool verify_whole_domain = false)
 	{
-		const int global_nodes_x = (*global_box)[0][1]+1;
-		const int global_nodes_y = (*global_box)[1][1]+1;
-		const int global_nodes_z = (*global_box)[2][1]+1;
-		err_info *max_error = (err_info *) rrl_malloc(numboxes * sizeof(err_info));
+		const int global_nodes_x = (*global_box)[0][1] + 1;
+		const int global_nodes_y = (*global_box)[1][1] + 1;
+		const int global_nodes_z = (*global_box)[2][1] + 1;
+		err_info *max_error = new err_info[numboxes];
 
 		for (int id = 0; id < numboxes; ++id) {
 
-			#pragma oss task			\
-				in(*global_box)			\
-				in(local_node_box_array[id])	\
-				in(x_array[id])			\
+			#pragma oss task				\
+				in(local_node_box_array[id])		\
+				in(x_array[id])				\
+				in(x_array[id].coefs[0; x_array[id].local_size]) \
 				out(max_error[id])
 			{
 
@@ -102,7 +116,7 @@ namespace miniFE
 				std::vector<double> row_coords;
 
 				int roffset = 0;
-				for(int iz=box[2][0]; iz<box[2][1]; ++iz) {
+				for(int iz=box[2][0]; iz < box[2][1]; ++iz) {
 					for(int iy = box[1][0]; iy < box[1][1]; ++iy) {
 						for(int ix = box[0][0]; ix < box[0][1]; ++ix) {
 							int row_id =
@@ -143,11 +157,11 @@ namespace miniFE
 					//x==1 is first, we want soln to be 1 even around the edges
 					//of the x==1 plane where y and/or z may be 0 or 1...
 					if (x == 1.0)
-						analytic_soln = 1;
+						analytic_soln = 1.0;
 					else if (x == 0.0 || y == 0.0 || z == 0.0)
-						analytic_soln = 0;
+						analytic_soln = 0.0;
 					else if (y == 1.0 || z == 1.0)
-						analytic_soln = 0;
+						analytic_soln = 0.0;
 					else
 						analytic_soln = soln(x, y, z, 300, 300);
 
@@ -177,7 +191,7 @@ namespace miniFE
 
 		std::cout << global_max_error << std::endl;
 
-		rrl_free(max_error, numboxes * sizeof(err_info));
+		delete [] max_error;
 
 		return (global_max_error.err > tolerance);
 	}

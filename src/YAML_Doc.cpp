@@ -27,12 +27,10 @@ YAML_Doc::YAML_Doc(const std::string& miniApp_Name,
                    const std::string& miniApp_Version,
                    const std::string& destination_Directory,
                    const std::string& destination_FileName)
-{
-	miniAppName = miniApp_Name;
-	miniAppVersion = miniApp_Version;
-	destinationDirectory = destination_Directory;
-	destinationFileName = destination_FileName;
-}
+	:miniAppName(miniApp_Name), miniAppVersion(miniApp_Version),
+	 destinationDirectory(destination_Directory),
+	 destinationFileName(destination_FileName)
+{}
 
 //inherits the destructor from YAML_Element
 YAML_Doc::~YAML_Doc(void)
@@ -47,14 +45,12 @@ string YAML_Doc::generateYAML()
 	string yaml;
 	yaml =  yaml + "Mini-Application Name: " + miniAppName + "\n";
 	yaml =  yaml + "Mini-Application Version: " + miniAppVersion + "\n";
-	for(size_t i=0; i<children.size(); i++){
+	for(size_t i=0; i<children.size(); i++)
 		yaml = yaml + children[i]->printYAML("");
-	}
 
 	time_t rawtime;
-	tm * ptm;
-	time ( &rawtime );
-	ptm = localtime(&rawtime);
+	time(&rawtime);
+	tm * ptm = localtime(&rawtime);
 	char sdate[25];
 	//use tm_mon+1 because tm_mon is 0 .. 11 instead of 1 .. 12
 	sprintf (sdate,"%04d:%02d:%02d-%02d:%02d:%02d",ptm->tm_year + 1900, ptm->tm_mon+1,
@@ -66,6 +62,7 @@ string YAML_Doc::generateYAML()
 	else
 		filename = destinationFileName;
 	filename = filename + string(sdate) + ".yaml";
+
 	if (destinationDirectory!="" && destinationDirectory!=".") {
 		string mkdir_cmd = "mkdir " + destinationDirectory;
 		#ifdef REDSTORM
