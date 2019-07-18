@@ -59,7 +59,6 @@ namespace miniFE {
 	}
 
 	#pragma oss task						\
-		in(A[0])						\
 		in(Arecv_ptr[0; Anrecv_neighbors])			\
 		in(Arecv_length[0; Anrecv_neighbors])			\
 		weakout(x_start[0; Anexternals])				\

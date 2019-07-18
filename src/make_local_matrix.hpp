@@ -49,7 +49,7 @@ namespace miniFE {
 		in(stop_row_array[0; numboxes])				\
 		in(Arows[0; Anrows])					\
 		in(Arow_offsets[0; Anrows + 1])				\
-		in(Apacked_cols[0; Annz])				\
+		inout(Apacked_cols[0; Annz])				\
 		in(Apacked_coefs[0; Annz])				\
 		out(Arecv_neighbors[0; numboxes])			\
 		out(Arecv_length[0; numboxes])
