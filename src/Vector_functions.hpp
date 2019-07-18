@@ -48,29 +48,6 @@ namespace miniFE {
 	// w - output vector
 	//
 
-	inline void waxpby_task(double alpha, const Vector *x,
-		double beta,  const Vector *y,
-		Vector *w)
-	{
-
-		#pragma oss task					\
-			in(x[0])						\
-			in(x->coefs[0; x->local_size])			\
-			in(y[0])						\
-			in(y->coefs[0; y->local_size])			\
-			in(w[0])						\
-			out(w->coefs[0; w->local_size])
-		{
-			assert(x->local_size <= y->local_size);
-			assert(x->local_size <= w->local_size);
-			const int n = x->local_size;
-
-			for (int i = 0; i < n; ++i)
-				w->coefs[i] = alpha * x->coefs[i] + beta * y->coefs[i];
-		}
-
-	}
-
 	//Like waxpby above, except operates on two sets of arguments.
 	//In other words, performs two waxpby operations in one loop.
 

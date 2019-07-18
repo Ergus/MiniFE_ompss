@@ -62,7 +62,7 @@ namespace miniFE {
 		in(A[0])						\
 		in(Arecv_ptr[0; Anrecv_neighbors])			\
 		in(Arecv_length[0; Anrecv_neighbors])			\
-		out(x_start[0; Anexternals])				\
+		weakout(x_start[0; Anexternals])				\
 		weakin(global_send_buffer[0; global_nelements_to_send])
 	void copy_from_senders(
 		CSRMatrix *A,
@@ -94,7 +94,6 @@ namespace miniFE {
 			// boundary check
 			assert(local_iter - x_start <= Anexternals);
 		}
-
 	}
 
 
@@ -133,7 +132,7 @@ namespace miniFE {
 		}
 	}
 
-	int breakdown(double inner, const Vector *v, const Vector *w)
+	int breakdown(double inner, Vector *v, Vector *w)
 	{
 		//This is code that was copied from Aztec, and originally written
 		//by my hero, Ray Tuminaro.
@@ -142,8 +141,7 @@ namespace miniFE {
 		//v and w are considered orthogonal if
 		//  |inner| < 100 * ||v||_2 * ||w||_2 * epsilon
 
-		double vnorm = 0;
-		double wnorm = 0;
+		double vnorm = 0, wnorm = 0;
 
 		dot2_task(v, &vnorm);
 		dot2_task(w, &wnorm);
@@ -213,9 +211,6 @@ namespace miniFE {
 		exchange_externals_all(A_array, p_array, numboxes, sing);
 
 		for (size_t i = 0; i < numboxes; ++i) {
-			// Tasks here
-			// in A_array[i] (full)
-
 			matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
 
 			waxpby_task(1.0, &b_array[i], -1.0, &Ap_array[i], &r_array[i]);
@@ -223,7 +218,6 @@ namespace miniFE {
 			dot2_task(&r_array[i], &rtrans[i]);
 		}
 
-		// TODO: taskwait here
 		reduce_sum_task(&rtrans_global, rtrans, numboxes);
 		#pragma oss taskwait
 
@@ -256,7 +250,6 @@ namespace miniFE {
 				for (size_t i = 0; i < numboxes; ++i) {
 					waxpby_task(1.0, &r_array[i], beta, &p_array[i], &p_array[i]);
 				}
-
 			}
 
 			// rtrans_global is here because of tw above
@@ -270,7 +263,7 @@ namespace miniFE {
 			// This creates tasks internally
 			exchange_externals_all(A_array, p_array, numboxes, sing);
 			for (size_t i = 0; i < numboxes; ++i) {
-				matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
+				matvec_task(&A_array[i], &p_array[i], &Ap_array[i], i, k == 1);
 
 				dot_task(&Ap_array[i], &p_array[i], &p_ap_dot[i]);
 			}
@@ -278,10 +271,7 @@ namespace miniFE {
 			reduce_sum_task(&p_ap_dot_global, p_ap_dot, numboxes);
 			#pragma oss taskwait
 
-			#ifdef MINIFE_DEBUG
-			os << "iter " << k << ", p_ap_dot = " << p_ap_dot_global;
-			os.flush();
-			#endif
+			dbvprintf("iter %d, p_ap_dot = %lf\n", k, p_ap_dot_global);
 
 			if (p_ap_dot_global < brkdown_tol) {
 
@@ -294,7 +284,7 @@ namespace miniFE {
 				}
 
 				// TODO taskwait here, because this must run locally.
-				reduce_sum_int_task(&breakdown_global, breakdown_array, numboxes);
+				reduce_sum_task(&breakdown_global, breakdown_array, numboxes);
 				#pragma oss taskwait
 
 				if (p_ap_dot_global < 0 || breakdown_global) {

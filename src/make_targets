@@ -52,11 +52,13 @@ miniFE.x: $(OBJS) $(HEADERS)
 # No target rules
 .PHONY: clean realclean test check-syntax
 
+CLEAN := *.o *.a *.x *.linkinfo miniFE_info.hpp mcxx_*.cpp miniFE.*.yaml VERB*.verb core.miniFE.* vgcore.*
+
 clean:
-	rm -f *.o *.a *.x *.linkinfo miniFE_info.hpp mcxx_*.cpp miniFE.*.yaml VERB*.verb core.MiniFE.*
+	rm -f $(CLEAN)
 
 realclean: clean
-	rm -f gmon.out gprof.* *~ *.yaml *.TVD.* *.mtx* *.vec* minife_debug* *.o *.a *.x *.linkinfo miniFE_info.hpp core.MiniFE.*
+	rm -f gmon.out gprof.* *~ *.yaml *.TVD.* *.mtx* *.vec* minife_debug* $(CLEAN)
 
 test: $(FILE)
 	./miniFE.x nx=10 verify_solution=1 numboxes=4

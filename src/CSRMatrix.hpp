@@ -229,13 +229,13 @@ namespace miniFE
 				stream << "}\n";
 			}
 
-			print_vector("recv_neighbors", nrecv_neighbors, recv_neighbors, stream);
-			print_vector("recv_length", nrecv_neighbors, recv_length, stream);
-			print_vector("externals", nexternals, external_index, stream);
+			print_vector("\nrecv_neighbors", nrecv_neighbors, recv_neighbors, stream);
+			print_vector("\nrecv_length", nrecv_neighbors, recv_length, stream);
+			print_vector("\nexternals", nexternals, external_index, stream);
 
-			print_vector("send_neighbors", nsend_neighbors, send_neighbors, stream);
-			print_vector("send_length", nsend_neighbors, send_length, stream);
-			print_vector("nelements_to_send", nelements_to_send, elements_to_send, stream);
+			print_vector("\nsend_neighbors", nsend_neighbors, send_neighbors, stream);
+			print_vector("\nsend_length", nsend_neighbors, send_length, stream);
+			print_vector("\nnelements_to_send", nelements_to_send, elements_to_send, stream);
 
 			#endif
 
@@ -244,45 +244,6 @@ namespace miniFE
 
 	}; // class CSRMatrix
 
-	inline void write_task(std::string filename, const CSRMatrix &Min, size_t id)
-	{
-		/*
-		CSRMatrix Mcopy(Min);  // This is a work around for the dependency issue
-
-		#pragma oss task					\
-			in(Mcopy)						\
-			in(Mcopy.rows[0; Mcopy.nrows])			\
-			in(Mcopy.row_offsets[0; Mcopy.nrows + 1])	\
-			in(Mcopy.packed_cols[0; Mcopy.nnz])		\
-			in(Mcopy.packed_coefs[0; Mcopy.nnz])		\
-			in(Mcopy.recv_neighbors[0; Mcopy.nrecv_neighbors]) \
-			in(Mcopy.recv_length[0; Mcopy.nrecv_neighbors])	\
-			in(Mcopy.external_index[0; Mcopy.nexternals])	\
-			in(Mcopy.send_neighbors[0; Mcopy.nsend_neighbors]) \
-			in(Mcopy.send_length[0; Mcopy.nsend_neighbors])	\
-			in(Mcopy.elements_to_send[0; Mcopy.nelements_to_send])
-		{
-			std::ofstream stream;
-
-			if (id == 0)
-				stream.open(filename, std::ofstream::out);
-			else
-				stream.open(filename, std::ofstream::app);
-
-			Mcopy.write(stream);
-
-			stream.close();
-		}
-
-		#pragma oss taskwait
-		*/
-	}
-
-
-	// #pragma oss task						\
-	// 	inout(A[0])						\
-	// 	in(mesh[0])						\
-	// 	in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])       // weak
 	void generate_matrix_structure_task(CSRMatrix *A,
 	                                    const simple_mesh_description *mesh,
 	                                    std::pair<int,int> *mesh_ompss2_ids_to_rows,
@@ -351,7 +312,8 @@ namespace miniFE
 	}
 
 
-	void matvec_task(const CSRMatrix *A, const Vector *x, Vector *y)
+	void matvec_task(CSRMatrix *A, Vector *x, Vector *y,
+	                 size_t id = 0, bool print  = false)
 	{
 		int *Arow_offsets = A->row_offsets;
 		size_t Anrows = A->nrows;
@@ -367,15 +329,24 @@ namespace miniFE
 		assert(ylocal_size >= Anrows);
 
 		#pragma oss task				\
-			in(*A)					\
-			in(Arow_offsets[0; Anrows + 1])	\
+			in(A[0])				\
+			in(Arow_offsets[0; Anrows + 1])		\
 			in(Apacked_cols[0; Annz])		\
 			in(Apacked_coefs[0; Annz])		\
-			in(*x)					\
+			in(x[0])				\
 			in(xcoefs[0; xlocal_size])		\
-			in(*y)					\
-			inout(ycoefs[0; ylocal_size])
+			in(y[0])				\
+			out(ycoefs[0; ylocal_size])
 		{
+			if (print) {
+				std::string filename = "VERB_matvec_" + std::to_string(id) + ".verb";
+				std::ofstream stream(filename);
+
+				A->write(stream);
+				x->write(stream);
+				stream.close();
+			}
+
 			const double beta = 0.0;  // I don't really understand what is this for
 
 			for (size_t row = 0; row < Anrows; ++row) {
@@ -388,139 +359,156 @@ namespace miniFE
 				}
 
 				//std::cout << "row[" << row << "] = " << sum << std::endl;
-				y->coefs[row] = sum;
+				ycoefs[row] = sum;
 			}
 		}
 	}
 
-	#pragma oss task						\
-		in(*mesh)		 				\
-		in(mesh_ompss2_ids_to_rows[0; mesh_i_ids_to_rows_size])	\
-		inout(A[0])						\
-		inout(A_rows[0; A_nrows])				\
-		inout(A_row_offsets[0; A_nrows + 1])			\
-		inout(A_packed_cols[0; A_nnz])				\
-		inout(A_packed_coefs[0; A_nnz])				\
-		inout(b[0])						\
-		inout(b_coefs[0; b_local_size])
 	inline void assemble_FE_data_task(size_t id,
 		const simple_mesh_description *mesh,
-		const std::pair<int,int> *mesh_ompss2_ids_to_rows,
-		size_t mesh_i_ids_to_rows_size,
 		CSRMatrix *A,
-		int *A_rows,
-		int *A_row_offsets,
-		size_t A_nrows,
-		int *A_packed_cols,
-		double *A_packed_coefs,
-		size_t A_nnz,
-		Vector *b,
-		double *b_coefs,
-		size_t b_local_size)
+		Vector *b)
 	{
-		Box local_elem_box(mesh->local_box);
 
-		if (local_elem_box.get_num_ids() < 1)
-			return;
-		//
-		//We want the element-loop to loop over our (processor-local) domain plus a
-		//ghost layer, so we can assemble the complete linear-system without doing
-		//any communication.
-		//
-		const int ghost = 1;
-		if (local_elem_box[0][0] > 0)
-			local_elem_box[0][0] -= ghost;
-		if (local_elem_box[1][0] > 0)
-			local_elem_box[1][0] -= ghost;
-		if (local_elem_box[2][0] > 0)
-			local_elem_box[2][0] -= ghost;
-		if (local_elem_box[0][1] < mesh->global_box[0][1])
-			local_elem_box[0][1] += ghost;
-		if (local_elem_box[1][1] < mesh->global_box[1][1])
-			local_elem_box[1][1] += ghost;
-		if (local_elem_box[2][1] < mesh->global_box[2][1])
-			local_elem_box[2][1] += ghost;
+		const std::pair<int,int> *mesh_ompss2_ids_to_rows = mesh->ompss2_ids_to_rows;
+		size_t mesh_i_ids_to_rows_size = mesh->ids_to_rows_size;
+		int *Arows = A->rows;
+		int *Arow_offsets = A->row_offsets;
+		size_t Anrows = A->nrows;
+		int *Apacked_cols = A->packed_cols;
+		double *Apacked_coefs = A->packed_coefs;
+		size_t Annz = A->nnz;
+		double *bcoefs = b->coefs;
+		size_t blocal_size = b->local_size;
 
-		perform_element_loop(*mesh, local_elem_box, *A, *b);
+		#pragma oss task					\
+			in(mesh[0])					\
+			in(mesh_ompss2_ids_to_rows[0; mesh_i_ids_to_rows_size])	\
+			inout(A[0])					\
+			inout(Arows[0; Anrows])				\
+			inout(Arow_offsets[0; Anrows + 1])		\
+			inout(Apacked_cols[0; Annz])			\
+			inout(Apacked_coefs[0; Annz])			\
+			inout(b[0])					\
+			inout(bcoefs[0; blocal_size])
+		{
+
+			Box local_elem_box(mesh->local_box);
+
+			if (local_elem_box.get_num_ids() < 1)
+				return;
+			//
+			//We want the element-loop to loop over our (processor-local) domain plus a
+			//ghost layer, so we can assemble the complete linear-system without doing
+			//any communication.
+			//
+			const int ghost = 1;
+			if (local_elem_box[0][0] > 0)
+				local_elem_box[0][0] -= ghost;
+			if (local_elem_box[1][0] > 0)
+				local_elem_box[1][0] -= ghost;
+			if (local_elem_box[2][0] > 0)
+				local_elem_box[2][0] -= ghost;
+			if (local_elem_box[0][1] < mesh->global_box[0][1])
+				local_elem_box[0][1] += ghost;
+			if (local_elem_box[1][1] < mesh->global_box[1][1])
+				local_elem_box[1][1] += ghost;
+			if (local_elem_box[2][1] < mesh->global_box[2][1])
+				local_elem_box[2][1] += ghost;
+
+			perform_element_loop(*mesh, local_elem_box, *A, *b);
+
+			#ifdef VERBOSE
+			{
+				std::string filename = "VERB_assemble_FE_data_task_" +
+					std::to_string(id) + ".verb";
+				std::ofstream stream(filename);
+				A->write(stream);
+				stream.close();
+			}
+			#endif
+
+		}
 	}
 
-	// TODO there are some if only
-	#pragma oss task						\
-		in(A[0])						\
-		in(Arows[0; Anrows])					\
-		in(Arow_offsets[0; Anrows + 1])			\
-		in(Apacked_cols[0; Annz])				\
-		inout(Apacked_coefs[0; Annz])				\
-		in(b[0])						\
-		inout(b_coefs[0; b_local_size])				\
-		in(bc_rows_array[0: bc_rows_size])
+
 	void impose_dirichlet_task(
 		double prescribed_value,
 		const CSRMatrix *A,
-		const int *Arows,
-		const int *Arow_offsets,
-		size_t Anrows,
-		const int *Apacked_cols,
-		double *Apacked_coefs,
-		size_t Annz,
 		const Vector *b,
-		double *b_coefs,
-		size_t b_local_size,
 		int global_nx, int global_ny, int global_nz,
 		const int *bc_rows_array,
 		size_t bc_rows_size)
 	{
+		int *Arows = A->rows;
+		int *Arow_offsets = A->row_offsets;
+		size_t Anrows = A->nrows;
+		int *Apacked_cols = A->packed_cols;
+		double *Apacked_coefs = A->packed_coefs;
+		size_t Annz = A->nnz;
+		double *bcoefs = b->coefs;
+		size_t blocal_size = b->local_size;
 
-		const int first_local_row = A->nrows > 0 ? A->rows[0] : 0;
-		const int last_local_row  = A->nrows > 0 ? A->rows[A->nrows - 1] : -1;
+		#pragma oss task					\
+			in(A[0])					\
+			in(Arows[0; Anrows])				\
+			in(Arow_offsets[0; Anrows + 1])		\
+			in(Apacked_cols[0; Annz])			\
+			inout(Apacked_coefs[0; Annz])			\
+			in(b[0])					\
+			inout(bcoefs[0; blocal_size])			\
+			in(bc_rows_array[0: bc_rows_size])
+		{
+			const int first_local_row = Anrows > 0 ? Arows[0] : 0;
+			const int last_local_row  = Anrows > 0 ? Arows[Anrows - 1] : -1;
 
-		for (size_t i = 0; i < bc_rows_size; ++i) {
-			const int row = bc_rows_array[i];
+			for (size_t i = 0; i < bc_rows_size; ++i) {
+				const int row = bc_rows_array[i];
 
-			if (row >= first_local_row && row <= last_local_row) {
-				const size_t local_row = row - first_local_row;
-				b->coefs[local_row] = prescribed_value;
-				zero_row_and_put_1_on_diagonal(A, row);
-			}
-		}
-
-		for (size_t i = 0; i < A->nrows; ++i) {
-			const int row = A->rows[i];
-
-			if (std::binary_search(bc_rows_array,
-			                       &bc_rows_array[bc_rows_size],
-			                       row))
-				continue;
-
-			size_t row_length = 0;
-			int *cols = NULL;
-			double *coefs = NULL;
-			A->get_row_pointers(row, row_length, cols, coefs);
-
-			double sum = 0.0;
-			for(size_t j = 0; j < row_length; ++j) {
-				if (std::binary_search(bc_rows_array,
-				                       &bc_rows_array[bc_rows_size],
-				                       cols[j])) {
-					sum += coefs[j];
-					coefs[j] = 0.0;
+				if (row >= first_local_row && row <= last_local_row) {
+					const size_t local_row = row - first_local_row;
+					bcoefs[local_row] = prescribed_value;
+					zero_row_and_put_1_on_diagonal(A, row);
 				}
 			}
 
-			b->coefs[i] -= sum * prescribed_value;
-		}
+			for (size_t i = 0; i < Anrows; ++i) {
+				const int row = Arows[i];
 
-		#ifdef VERBOSE
-		{
-			std::string filename = "VERB_mesh_exit_impose_dirichlet_"  +
-				std::to_string(A->id) + "_" +
-				std::to_string(prescribed_value) + ".verb";
-			std::ofstream stream(filename);
-			A->write(stream);
-			stream.close();
-		}
-		#endif
+				if (std::binary_search(bc_rows_array,
+				                       &bc_rows_array[bc_rows_size],
+				                       row))
+					continue;
 
+				size_t row_length = 0;
+				int *cols = NULL;
+				double *coefs = NULL;
+				A->get_row_pointers(row, row_length, cols, coefs);
+
+				double sum = 0.0;
+				for(size_t j = 0; j < row_length; ++j) {
+					if (std::binary_search(bc_rows_array,
+					                       &bc_rows_array[bc_rows_size],
+					                       cols[j])) {
+						sum += coefs[j];
+						coefs[j] = 0.0;
+					}
+				}
+
+				bcoefs[i] -= sum * prescribed_value;
+			}
+
+			#ifdef VERBOSE
+			{
+				std::string filename = "VERB_mesh_exit_impose_dirichlet_"  +
+					std::to_string(A->id) + "_" +
+					std::to_string(prescribed_value) + ".verb";
+				std::ofstream stream(filename);
+				A->write(stream);
+				stream.close();
+			}
+			#endif
+		}
 
 	}
 

@@ -198,26 +198,9 @@ namespace miniFE
 			std::cout << "assembling FE data..." << std::endl;
 			timer_type fe_assembly = mytimer();
 
-			for (size_t i = 0; i < numboxes; ++i) {
-				simple_mesh_description *mesh_i = &mesh_array[i];
-				CSRMatrix *A_i = &A_array[i];
-				Vector *b_i = &b_array[i];
+			for (size_t i = 0; i < numboxes; ++i)
+				assemble_FE_data_task(i, &mesh_array[i], &A_array[i], &b_array[i]);
 
-				assemble_FE_data_task(i,
-				                      mesh_i,
-				                      mesh_i->ompss2_ids_to_rows,
-				                      mesh_i->ids_to_rows_size,
-				                      A_i,
-				                      A_i->rows,
-				                      A_i->row_offsets,
-				                      A_i->nrows,
-				                      A_i->packed_cols,
-				                      A_i->packed_coefs,
-				                      A_i->nnz,
-				                      b_i,
-				                      b_i->coefs,
-				                      b_i->local_size);
-			}
 			#pragma oss taskwait
 
 			REGISTER_ELAPSED_TIME(fe_assembly, t_total);
@@ -241,30 +224,14 @@ namespace miniFE
 
 				impose_dirichlet_task(0.0,
 				                 A_i,
-				                 A_i->rows,
-				                 A_i->row_offsets,
-				                 A_i->nrows,
-				                 A_i->packed_cols,
-				                 A_i->packed_coefs,
-				                 A_i->nnz,
 				                 b_i,
-				                 b_i->coefs,
-				                 b_i->local_size,
 				                 global_nx + 1, global_ny + 1, global_nz + 1,
 				                 mesh_i->ompss2_bc_rows_0,
 				                 mesh_i->bc_rows_0_size);
 
 				impose_dirichlet_task(1.0,
 				                 A_i,
-				                 A_i->rows,
-				                 A_i->row_offsets,
-				                 A_i->nrows,
-				                 A_i->packed_cols,
-				                 A_i->packed_coefs,
-				                 A_i->nnz,
 				                 b_i,
-				                 b_i->coefs,
-				                 b_i->local_size,
 				                 global_nx + 1, global_ny + 1, global_nz + 1,
 				                 mesh_i->ompss2_bc_rows_1,
 				                 mesh_i->bc_rows_1_size);

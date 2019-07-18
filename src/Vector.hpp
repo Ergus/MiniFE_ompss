@@ -104,7 +104,8 @@ namespace miniFE
 		void write(std::ostream &stream) const
 		{
 			stream << "Vector start= " << startIndex << "\n";
-			print_vector("", local_size, coefs, stream);
+			print_vector("coefs", local_size, coefs, stream);
+			stream << std::endl;
 		}
 
 	};
@@ -134,38 +135,74 @@ namespace miniFE
 
 	void dot_task(const Vector *x, const Vector *y, double *ret)
 	{
-		#pragma oss task					\
-			in(*x)						\
-			in(x->coefs[0; x->local_size])			\
-			in(*y)						\
-			in(y->coefs[0; y->local_size])			\
-			out(*ret)
-		{
-			const size_t n = x->local_size;
 
-			assert(y->local_size >= n);
+		double *xcoefs = x->coefs;
+		size_t xlocal_size = x->local_size;
+		double *ycoefs = y->coefs;
+		size_t ylocal_size = y->local_size;
+
+		#pragma oss task					\
+			in(xcoefs[0; xlocal_size])			\
+			in(ycoefs[0; ylocal_size])			\
+			out(ret[0])
+		{
+			const size_t n = xlocal_size;
+
+			assert(ylocal_size >= n);
 
 			double result = 0.0;
 			for (size_t i = 0; i < n; ++i)
-				result += x->coefs[i] * y->coefs[i];
+				result += xcoefs[i] * ycoefs[i];
 
-			*ret = result;
+			ret[0] = result;
 		}
 	}
 
-	void dot2_task(const Vector *x, double * ret)
+	void dot2_task(Vector *x, double *ret)
 	{
+		double *xcoefs = x->coefs;
+		size_t xlocal_size = x->local_size;
+
 		#pragma oss task					\
-			in(*x)						\
-			in(x->coefs[0; x->local_size])			\
-			out(*ret)
+			in(xcoefs[0; xlocal_size])			\
+			out(ret[0; 1])
 		{
 			double result = 0.0;
-			for (size_t i = 0; i < x->local_size; ++i)
-				result += x->coefs[i] * x->coefs[i];
+			for (size_t i = 0; i < xlocal_size; ++i)
+				result += xcoefs[i] * xcoefs[i];
 
-			*ret = result;
+			ret[0] = result;
+			dbvprintf("dot2_task: %lf\n", *ret);
 		}
+	}
+
+
+	inline void waxpby_task(double alpha, const Vector *x,
+		double beta,  const Vector *y,
+		Vector *w)
+	{
+
+		double *xcoefs = x->coefs;
+		size_t xlocal_size = x->local_size;
+		double *ycoefs = y->coefs;
+		size_t ylocal_size = y->local_size;
+		double *wcoefs = w->coefs;
+		size_t wlocal_size = w->local_size;
+
+
+		#pragma oss task					\
+			in(xcoefs[0; xlocal_size])			\
+			in(ycoefs[0; ylocal_size])			\
+			out(wcoefs[0; wlocal_size])
+		{
+			assert(xlocal_size <= ylocal_size);
+			assert(xlocal_size <= wlocal_size);
+			const int n = xlocal_size;
+
+			for (int i = 0; i < n; ++i)
+				wcoefs[i] = alpha * xcoefs[i] + beta * ycoefs[i];
+		}
+
 	}
 
 

@@ -26,6 +26,14 @@
 #include <map>
 #include <cstring>
 
+#ifdef NANOS6
+#include "nanos6.h"
+#else
+#define nanos6_get_cluster_node_id() 0
+#define nanos6_get_cluster_nodes() 1
+#endif
+
+
 // General use macros Here
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
@@ -83,7 +91,7 @@ std::ostream &array_to_stream(const T *in, size_t size,
 
 
 template <typename T>
-std::ostream &print_vector(std::string vname, size_t size, const  T *vect, std::ostream &stream = std::cout)
+void print_vector(std::string vname, size_t size, const  T *vect, std::ostream &stream = std::cout)
 {
 	stream << vname
 	       << "(" << vect << ":" << size * sizeof(T) << ")"
@@ -95,12 +103,10 @@ std::ostream &print_vector(std::string vname, size_t size, const  T *vect, std::
 		stream << vect[i];
 	}
 	stream << " }";
-
-	return stream;
 }
 
 template <typename _Key, typename _Tp>
-std::ostream& operator<< (std::ostream& os, const std::pair<_Key, _Tp> &in)
+std::ostream &operator<< (std::ostream& os, const std::pair<_Key, _Tp> &in)
 {
 	os << "<" << in.first << ";" << in.second << ">";
 	return os;
@@ -113,8 +119,23 @@ inline void write_all(std::string &filename, const T *in_array, size_t numboxes)
 		write_task(filename, in_array[id], id);
 }
 
-#pragma oss task in(vin[0; size]) out(vout[0])
-inline void reduce_sum_task(double *vout, const double *vin, size_t size)
+#pragma oss task in(vin[0; size]) out(vout[0; 1])
+inline void reduce_sum_task(double *vout, double *vin, size_t size)
+{
+	double tmp = 0.0;
+	for (size_t i = 0; i < size; ++i)
+		tmp += vin[i];
+
+	vout[0] = tmp;
+
+	#ifdef VERBOSE
+	print_vector("Reducing: ", size, vin);
+	std::cout << " = " << *vout << std::endl;
+	#endif
+}
+
+#pragma oss task in(vin[0; size]) out(vout[0; 1])
+inline void reduce_sum_task(int *vout, const int *vin, size_t size)
 {
 	*vout = 0;
 	for (size_t i = 0; i < size; ++i)
@@ -124,67 +145,8 @@ inline void reduce_sum_task(double *vout, const double *vin, size_t size)
 	print_vector("Reducing: ", size, vin, std::cout);
 	std::cout << *vout << std::endl;
 	#endif
-
 }
 
-#pragma oss task in(vin[0; size]) out(vout[0])
-inline void reduce_sum_int_task(int *vout, const int *vin, size_t size)
-{
-	*vout = 0;
-	for (size_t i = 0; i < size; ++i)
-		*vout += vin[i];
-
-	#ifndef NDEBUG
-	print_vector("Reducing: ", size, vin, std::cout);
-	std::cout << *vout << std::endl;
-	#endif
-}
-
-
-#ifdef NANOS6 // ===============================================================
-
-// Nanos6 defined (this can go in a file)
-#include "nanos6.h"
-
-static inline void ompss_memset_task(void *s, int c, size_t n)
-{
-	char *ts = (char *) s;
-
-	#pragma oss task out(ts[0; n])
-	memset(ts, c, n);
-}
-
-// Distributed Memory
-inline void *_rrd_malloc(size_t size, const char info[] = "")
-{
-	void *ret = nanos6_dmalloc(size, nanos6_equpart_distribution, 0, NULL);
-	dbvprintf("%s %s(%lu) = [%p -> %p]\n", info, __func__, size,  ret, (char*)ret + size);
-
-	assert(size == 0 || ret != NULL);
-	return ret;
-}
-
-inline void _rrd_free(void *in, size_t size, const char info[] = "")
-{
-	dbvprintf("%s %s(%p, %lu)\n", info, __PRETTY_FUNCTION__, in, size);
-	nanos6_dfree(in, size);
-}
-
-inline void *_rrl_malloc(size_t size, const char info[] = "")
-{
-	void *ret = nanos6_lmalloc(size);
-	dbvprintf("%s %s(%lu) = [%p -> %p]\n",
-	          info, __func__, size, ret, (char*)ret + size);
-	assert(size == 0 || ret != NULL);
-
-	return ret;
-}
-
-inline void _rrl_free(void *in, size_t size, const char info[] = "")
-{
-	dbvprintf("%s %s(%p, %lu)\n", info, __func__, in, size);
-	nanos6_lfree(in, size);
-}
 
 inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 {
@@ -196,9 +158,44 @@ inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 
 	#pragma oss task in(tin[0; size]) out(tout[0; size])
 	{
-		dbvprintf("Copy %ld bytes from %p -> %p\n", size, pin, pout);
+		dbv2printf("Copy %ld bytes from %p -> %p\n", size, pin, pout);
 		memcpy(tout, tin, size);
 	}
+}
+
+
+#ifdef NANOS6 // ===============================================================
+
+// Distributed Memory
+inline void *_rrd_malloc(size_t size, const char info[] = "")
+{
+	void *ret = nanos6_dmalloc(size, nanos6_equpart_distribution, 0, NULL);
+	dbv2printf("%s %s(%lu) = [%p -> %p]\n", info, __func__, size,  ret, (char*)ret + size);
+
+	assert(size == 0 || ret != NULL);
+	return ret;
+}
+
+inline void _rrd_free(void *in, size_t size, const char info[] = "")
+{
+	dbv2printf("%s %s(%p, %lu)\n", info, __PRETTY_FUNCTION__, in, size);
+	nanos6_dfree(in, size);
+}
+
+inline void *_rrl_malloc(size_t size, const char info[] = "")
+{
+	void *ret = nanos6_lmalloc(size);
+	dbv2printf("%s %s(%lu) = [%p -> %p]\n",
+	          info, __func__, size, ret, (char*)ret + size);
+	assert(size == 0 || ret != NULL);
+
+	return ret;
+}
+
+inline void _rrl_free(void *in, size_t size, const char info[] = "")
+{
+	dbv2printf("%s %s(%p, %lu)\n", info, __func__, in, size);
+	nanos6_lfree(in, size);
 }
 
 template<typename T, typename Container>
@@ -226,39 +223,29 @@ size_t stl_to_global_task(T *vout, const Container &vin)
 	return sz;
 }
 
-#define get_node_id() nanos6_get_cluster_node_id()
-#define get_nodes_nr() nanos6_get_cluster_nodes()
-
 #else // NANOS6 ================================================================
-
-#define nanos6_get_cluster_node_id() 0
-
-static inline void ompss_memset_task(void *s, int c, size_t n)
-{
-	memset(s, c, n);
-}
 
 static inline void *_rrd_malloc(size_t size, const char info[] = "")
 {
-	dbvprintf("%s %s(%ld) = ", info, __func__, size);
+	dbv2printf("%s %s(%ld) = ", info, __func__, size);
 	void *ret = malloc(size);
-	dbvprintf("[%p -> %p]\n", ret, (char*)ret + size);
+	dbv2printf("[%p -> %p]\n", ret, (char*)ret + size);
 
 	return ret;
 }
 
 static inline void _rrd_free(void *in, size_t size, const char info[] = "")
 {
-	dbvprintf("%s %s(%p, %ld)\n", info, __func__, in, size);
+	dbv2printf("%s %s(%p, %ld)\n", info, __func__, in, size);
 	free(in);
 }
 
 static inline void *_rrl_malloc(size_t size, const char info[] = "")
 {
-	dbvprintf("%s %s(%ld) = ", info, __func__, size);
+	dbv2printf("%s %s(%ld) = ", info, __func__, size);
 	void *ret = malloc(size);
 	assert(size == 0 || ret != NULL);
-	dbvprintf("Using libc lmalloc [%p -> %p] size %ld\n",
+	dbv2printf("Using libc lmalloc [%p -> %p] size %ld\n",
 		 ret, (char*)ret + size, size);
 
 	return ret;
@@ -266,15 +253,8 @@ static inline void *_rrl_malloc(size_t size, const char info[] = "")
 
 static inline void _rrl_free(void *in, size_t size, const char info[] = "")
 {
-	dbvprintf("%s %s(%p, %ld)\n", info, __func__, in, size);
+	dbv2printf("%s %s(%p, %ld)\n", info, __func__, in, size);
 	free(in);
-}
-
-
-
-inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
-{
-	memcpy(pout, pin, size);
 }
 
 template<typename T, typename Container>
@@ -291,9 +271,6 @@ size_t stl_to_global_task(T *vout, const Container &vin)
 
 	return sz;
 }
-
-#define get_node_id() 0
-#define get_nodes_nr() 1
 
 #endif // NANOS6 ===============================================================
 

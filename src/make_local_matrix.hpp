@@ -99,7 +99,7 @@ namespace miniFE {
 					Acols[j] -= start_row;
 				} else { // Must find out if we have already set up this point
 					if (externals.find(cur_ind) == externals.end()) {
-						dbvprintf("Box %lu: set element %d as external (not in [%d <-> %d])\n",
+						dbv2printf("Box %lu: set element %d as external (not in [%d <-> %d])\n",
 						          id, cur_ind, start_row, stop_row);
 
 						externals[cur_ind] = num_external++;
@@ -177,7 +177,7 @@ namespace miniFE {
 			}
 		}
 
-		#ifdef VERBOSE
+		#if VERBOSE == 2
 		print_vector("A->external_index_" + std::to_string(id), num_external, A->external_index, std::cout);
 		std::cout << std::endl;
 		#endif
@@ -201,9 +201,6 @@ namespace miniFE {
 			}
 		}
 
-		// #pragma oss taskwait
-		// Release local memory
-		// Filling the externals
 		free(external_local_index_local);
 	}
 
