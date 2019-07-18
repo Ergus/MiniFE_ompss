@@ -104,7 +104,7 @@ namespace miniFE
 		void write(std::ostream &stream) const
 		{
 			stream << "Vector start= " << startIndex << "\n";
-			print_vector("coefs", local_size, coefs, stream);
+			dbvprint_vector("coefs", local_size, coefs, stream);
 			stream << std::endl;
 		}
 
@@ -155,6 +155,7 @@ namespace miniFE
 				result += xcoefs[i] * ycoefs[i];
 
 			ret[0] = result;
+			dbvprintf("dot_task: %lg\n", ret[0]);
 		}
 	}
 
@@ -172,7 +173,7 @@ namespace miniFE
 				result += xcoefs[i] * xcoefs[i];
 
 			ret[0] = result;
-			dbvprintf("dot2_task: %lf\n", *ret);
+			dbvprintf("dot2_task: %lg\n", ret[0]);
 		}
 	}
 

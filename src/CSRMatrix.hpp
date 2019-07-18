@@ -229,13 +229,13 @@ namespace miniFE
 				stream << "}\n";
 			}
 
-			print_vector("\nrecv_neighbors", nrecv_neighbors, recv_neighbors, stream);
-			print_vector("\nrecv_length", nrecv_neighbors, recv_length, stream);
-			print_vector("\nexternals", nexternals, external_index, stream);
+			dbvprint_vector("\nrecv_neighbors", nrecv_neighbors, recv_neighbors, stream);
+			dbvprint_vector("\nrecv_length", nrecv_neighbors, recv_length, stream);
+			dbvprint_vector("\nexternals", nexternals, external_index, stream);
 
-			print_vector("\nsend_neighbors", nsend_neighbors, send_neighbors, stream);
-			print_vector("\nsend_length", nsend_neighbors, send_length, stream);
-			print_vector("\nnelements_to_send", nelements_to_send, elements_to_send, stream);
+			dbvprint_vector("\nsend_neighbors", nsend_neighbors, send_neighbors, stream);
+			dbvprint_vector("\nsend_length", nsend_neighbors, send_length, stream);
+			dbvprint_vector("\nnelements_to_send", nelements_to_send, elements_to_send, stream);
 
 			#endif
 

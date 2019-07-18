@@ -47,20 +47,25 @@
 // Debug conditional macros here.
 #ifndef NDEBUG
 #define dbprintf(...) fprintf(stderr, __VA_ARGS__)
+#define dbvprint_vector(...) _print_vector(__VA_ARGS__)
 #else
 #define dbprintf(...)
+#define dbvprint_vector(...)
 #endif
 
 #if !defined NDEBUG && defined VERBOSE
 #define dbvprintf(ARG, ...) fprintf(stderr, "Node: %d: " ARG, nanos6_get_cluster_node_id(), ##__VA_ARGS__)
 #if VERBOSE == 2
 #define dbv2printf(...) fprintf(stderr, __VA_ARGS__)
+#define dbv2print_vector(...) _print_vector(__VA_ARGS__)
 #else
 #define dbv2printf(...)
+#define dbv2print_vector(...)
 #endif
 #else
 #define dbvprintf(...)
 #define dbv2printf(...)
+#define dbv2print_vector(...)
 #endif
 
 #if !defined NDEBUG && defined VERBOSE
@@ -91,7 +96,7 @@ std::ostream &array_to_stream(const T *in, size_t size,
 
 
 template <typename T>
-void print_vector(std::string vname, size_t size, const  T *vect, std::ostream &stream = std::cout)
+void _print_vector(std::string vname, size_t size, const  T *vect, std::ostream &stream = std::cout)
 {
 	stream << vname
 	       << "(" << vect << ":" << size * sizeof(T) << ")"
@@ -119,32 +124,20 @@ inline void write_all(std::string &filename, const T *in_array, size_t numboxes)
 		write_task(filename, in_array[id], id);
 }
 
-#pragma oss task in(vin[0; size]) out(vout[0; 1])
-inline void reduce_sum_task(double *vout, double *vin, size_t size)
+template <typename T>
+inline void reduce_sum_task(T *vout, const T *vin, size_t size)
 {
-	double tmp = 0.0;
-	for (size_t i = 0; i < size; ++i)
-		tmp += vin[i];
+	#pragma oss task in(vin[0; size]) out(vout[0; 1])
+	{
+		*vout = 0;
+		for (size_t i = 0; i < size; ++i)
+			*vout += vin[i];
 
-	vout[0] = tmp;
-
-	#ifdef VERBOSE
-	print_vector("Reducing: ", size, vin);
-	std::cout << " = " << *vout << std::endl;
-	#endif
-}
-
-#pragma oss task in(vin[0; size]) out(vout[0; 1])
-inline void reduce_sum_task(int *vout, const int *vin, size_t size)
-{
-	*vout = 0;
-	for (size_t i = 0; i < size; ++i)
-		*vout += vin[i];
-
-	#ifndef NDEBUG
-	print_vector("Reducing: ", size, vin, std::cout);
-	std::cout << *vout << std::endl;
-	#endif
+		#ifndef VERBOSE
+		dbvprint_vector("Reducing: ", size, vin);
+		std::cout << *vout << std::endl;
+		#endif
+	}
 }
 
 

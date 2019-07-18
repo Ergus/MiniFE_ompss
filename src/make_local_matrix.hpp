@@ -177,10 +177,7 @@ namespace miniFE {
 			}
 		}
 
-		#if VERBOSE == 2
-		print_vector("A->external_index_" + std::to_string(id), num_external, A->external_index, std::cout);
-		std::cout << std::endl;
-		#endif
+		dbv2print_vector("A->external_index_" + std::to_string(id), num_external, A->external_index);
 		assert(count_proc <= numboxes);
 
 		A->nrecv_neighbors = count_proc;
@@ -205,7 +202,7 @@ namespace miniFE {
 	}
 
 	// TODO try to substitute A with first private
-	#pragma oss task inout(*A)					\
+	#pragma oss task inout(A[0])					\
 		in(nrecv_neighbors_global[0; numboxes])			\
 		in(recv_neighbors_global[0; global_nrecv_neighbors])	\
 		in(recv_length_global[0; global_nrecv_neighbors])	\
@@ -227,11 +224,11 @@ namespace miniFE {
 		{
 			std::string filename = "VERB_get_send_info_task_vectors_" + std::to_string(id) + ".verb";
 			std::ofstream stream(filename);
-			print_vector("nrecv_neighbors_global", numboxes,
+			dbvprint_vector("nrecv_neighbors_global", numboxes,
 			             nrecv_neighbors_global, stream);
-			print_vector("recv_neighbors_global", global_nrecv_neighbors,
+			dbvprint_vector("recv_neighbors_global", global_nrecv_neighbors,
 			             recv_neighbors_global, stream);
-			print_vector("nrecv_neighbors_global", global_nrecv_neighbors,
+			dbvprint_vector("nrecv_neighbors_global", global_nrecv_neighbors,
 			             recv_length_global, stream);
 			stream.close();
 
@@ -313,13 +310,10 @@ namespace miniFE {
 			std::string filename = "VERB_set_send_info_task_" + std::to_string(id) + ".verb";
 			std::ofstream stream(filename);
 
-			print_vector("send_neighbors_local", nsend_neighbors_local, send_neighbors_local, stream);
-			print_vector("send_length_local", nsend_neighbors_local, send_length_local, stream);
-			print_vector("recv_neighbors_global", global_nrecv_neighbors, recv_neighbors_global, stream);
-			print_vector("recv_length_global", global_nrecv_neighbors, recv_length_global, stream);
-
-			//print_vector("external_index_global", global_nexternals_global, external_index_global, std::cout);
-
+			dbvprint_vector("send_neighbors_local", nsend_neighbors_local, send_neighbors_local, stream);
+			dbvprint_vector("send_length_local", nsend_neighbors_local, send_length_local, stream);
+			dbvprint_vector("recv_neighbors_global", global_nrecv_neighbors, recv_neighbors_global, stream);
+			dbvprint_vector("recv_length_global", global_nrecv_neighbors, recv_length_global, stream);
 			stream.close();
 			dbvprintf("Saved vectors %lu to file %s\n", id, filename.c_str());
 		}

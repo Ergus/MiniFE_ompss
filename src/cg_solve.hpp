@@ -81,7 +81,7 @@ namespace miniFE {
 			#ifndef NDEBUG
 			if (!Arecv_ptr[i]) {
 				dbprintf("Error in vector A.recv_ptr[%d]\n", i);
-				print_vector("Arecv_ptr", Anrecv_neighbors, Arecv_ptr, std::cout);
+				dbvprint_vector("Arecv_ptr", Anrecv_neighbors, Arecv_ptr);
 			}
 			assert(Arecv_ptr[i] != NULL);
 			#endif
@@ -270,7 +270,7 @@ namespace miniFE {
 			reduce_sum_task(&p_ap_dot_global, p_ap_dot, numboxes);
 			#pragma oss taskwait
 
-			dbvprintf("iter %d, p_ap_dot = %lf\n", k, p_ap_dot_global);
+			dbvprintf("iter %d, p_ap_dot = %g\n", k, p_ap_dot_global);
 
 			if (p_ap_dot_global < brkdown_tol) {
 

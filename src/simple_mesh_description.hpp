@@ -97,11 +97,9 @@ namespace miniFE
 			stream << "local_box: " << local_box << "\n";
 			stream << "extended_box: " << extended_box << "\n";
 
-			#ifdef VERBOSE
-			print_vector("bc_rows_0", bc_rows_0_size, ompss2_bc_rows_0, stream);
-			print_vector("bc_rows_1", bc_rows_1_size, ompss2_bc_rows_1, stream);
-			print_vector("ids_to_rows", ids_to_rows_size, ompss2_ids_to_rows, stream);
-			#endif
+			dbvprint_vector("bc_rows_0", bc_rows_0_size, ompss2_bc_rows_0, stream);
+			dbvprint_vector("bc_rows_1", bc_rows_1_size, ompss2_bc_rows_1, stream);
+			dbvprint_vector("ids_to_rows", ids_to_rows_size, ompss2_ids_to_rows, stream);
 		}
 
 		int id;
