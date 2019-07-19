@@ -50,7 +50,6 @@ namespace miniFE {
 		in(Arows[0; Anrows])					\
 		in(Arow_offsets[0; Anrows + 1])				\
 		inout(Apacked_cols[0; Annz])				\
-		in(Apacked_coefs[0; Annz])				\
 		out(Arecv_neighbors[0; numboxes])			\
 		out(Arecv_length[0; numboxes])
 	void get_recv_info_task(CSRMatrix *A, size_t id, size_t numboxes,
@@ -60,20 +59,12 @@ namespace miniFE {
 	                        int *Arows,
 	                        int *Arow_offsets,
 	                        int *Apacked_cols,
-	                        double *Apacked_coefs, // TODO: remove this 
 	                        int *Arecv_neighbors,
 	                        int *Arecv_length,
 	                        size_t Annz, size_t Anrows)
 	{
-		#ifdef VERBOSE
-		{
-			std::string filename = "VERB_get_recv_info_task_A_" + std::to_string(id) + ".verb";
-			std::ofstream stream(filename);
-			A->write(stream);
-			stream.close();
-			dbvprintf("Saved matrix %lu to file %s\n", id, filename.c_str());
-		}
-		#endif
+
+		//dbvwrite(A);
 
 		// First count and find the external elements
 		// And invert the externals
@@ -449,7 +440,6 @@ namespace miniFE {
 			                   A->rows,
 			                   A->row_offsets,
 			                   A->packed_cols,
-			                   A->packed_coefs,
 			                   A->recv_neighbors,
 			                   A->recv_length,
 			                   A->nnz, A->nrows);

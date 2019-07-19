@@ -282,13 +282,13 @@ namespace miniFE {
 						breakdown(p_ap_dot_global, &Ap_array[i], &p_array[i]);
 				}
 
-				// TODO taskwait here, because this must run locally.
+
 				reduce_sum_task(&breakdown_global, breakdown_array, numboxes);
 				#pragma oss taskwait
 
 				if (p_ap_dot_global < 0 || breakdown_global) {
 
-					fprintf(stderr, "miniFE::cg_solve ERROR, numerical breakdown!\n");
+					perror("miniFE::cg_solve ERROR, numerical breakdown!\n");
 
 					dbprintf("ERROR: p_ap_dot_global = %lf && breakdown_global = %d\n",
 					         p_ap_dot_global, breakdown_global);

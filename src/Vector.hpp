@@ -155,7 +155,7 @@ namespace miniFE
 				result += xcoefs[i] * ycoefs[i];
 
 			ret[0] = result;
-			dbvprintf("dot_task: %lg\n", ret[0]);
+			dbv2printf("dot_task: %lg\n", ret[0]);
 		}
 	}
 
@@ -173,7 +173,7 @@ namespace miniFE
 				result += xcoefs[i] * xcoefs[i];
 
 			ret[0] = result;
-			dbvprintf("dot2_task: %lg\n", ret[0]);
+			dbv2printf("dot2_task: %lg\n", ret[0]);
 		}
 	}
 

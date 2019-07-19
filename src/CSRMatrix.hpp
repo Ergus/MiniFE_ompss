@@ -39,8 +39,6 @@
 #include "utils.hpp"
 #include "ompss_utils.hpp"
 
-#include <fstream>      // std::ofstream
-
 namespace miniFE
 {
 
@@ -241,7 +239,6 @@ namespace miniFE
 
 		}
 
-
 	}; // class CSRMatrix
 
 	void generate_matrix_structure_task(CSRMatrix *A,
@@ -310,7 +307,6 @@ namespace miniFE
 		#pragma oss taskwait
 		rrl_free(row_coords, A->nrows * 3 * sizeof(int));
 	}
-
 
 	void matvec_task(CSRMatrix *A, Vector *x, Vector *y,
 	                 size_t id = 0, bool print  = false)
@@ -497,19 +493,7 @@ namespace miniFE
 
 				bcoefs[i] -= sum * prescribed_value;
 			}
-
-			#ifdef VERBOSE
-			{
-				std::string filename = "VERB_mesh_exit_impose_dirichlet_"  +
-					std::to_string(A->id) + "_" +
-					std::to_string(prescribed_value) + ".verb";
-				std::ofstream stream(filename);
-				A->write(stream);
-				stream.close();
-			}
-			#endif
 		}
-
 	}
 
 
