@@ -26,6 +26,7 @@
 #include <map>
 #include <cstring>
 #include <fstream>      // std::ofstream
+#include <functional>
 
 // nanos conditional macros here
 
@@ -234,5 +235,20 @@ void write(const T *A, std::string prefix)
 	stream.close();
 }
 
+
+template<typename T, typename R>
+void get_offsets(R &count, R *indices, R *offsets, size_t numboxes,
+                 const T *array, std::function<R(const T &)> f)
+{
+	count = 0;
+	for (size_t id = 0; id < numboxes; ++id) {
+		const R tmp = f(array[id]);
+
+		indices[id] = tmp;
+		offsets[id] = count;
+
+		count += tmp;
+	}
+}
 
 #endif // OMPSS_UTILS_HPP

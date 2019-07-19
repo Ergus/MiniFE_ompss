@@ -454,16 +454,26 @@ namespace miniFE {
 			int nexternals = 0;
 			int *nexternals_offset = (int *) alloca(numboxes * sizeof(int));;
 
-			for (size_t id = 0; id < numboxes; ++id) {
-				sing->nrecv_neighbors[id] = A_array[id].nrecv_neighbors;
-				sing->nexternals[id] = A_array[id].nexternals;
 
-				nrecv_neighbors_offset[id] = global_nrecv_neighbors;
-				global_nrecv_neighbors += A_array[id].nrecv_neighbors;
+			get_offsets<CSRMatrix, int>(global_nrecv_neighbors,
+			                            sing->nrecv_neighbors,
+			                            nrecv_neighbors_offset,
+			                            numboxes,
+			                            A_array,
+			                            [](const CSRMatrix &A) -> int
+						    {
+							    return A.nrecv_neighbors;
+						    });
 
-				nexternals_offset[id] = nexternals;
-				nexternals += A_array[id].nexternals;
-			}
+			get_offsets<CSRMatrix, int>(nexternals,
+			                            sing->nexternals,
+			                            nexternals_offset,
+			                            numboxes,
+			                            A_array,
+			                            [](const CSRMatrix &A) -> int
+						    {
+							    return A.nexternals;
+						    });
 
 			// this allocates the arrays internally with dmalloc
 			assert(global_nrecv_neighbors > 0);
@@ -530,16 +540,25 @@ namespace miniFE {
 			int global_nelements_to_send = 0;
 			int *nelements_to_send_offset = (int *) alloca(numboxes * sizeof(int));
 
-			for (size_t id = 0; id < numboxes; ++id) {
-				sing->nsend_neighbors[id] = A_array[id].nsend_neighbors;
-				sing->nelements_to_send[id] = A_array[id].nelements_to_send;
+			get_offsets<CSRMatrix, int>(global_nsend_neighbors,
+			                            sing->nsend_neighbors,
+			                            nsend_neighbors_offset,
+			                            numboxes,
+			                            A_array,
+			                            [](const CSRMatrix &A) -> int
+						    {
+							    return A.nsend_neighbors;
+						    });
 
-				nsend_neighbors_offset[id] = global_nsend_neighbors;
-				global_nsend_neighbors += A_array[id].nsend_neighbors;
-
-				nelements_to_send_offset[id] = global_nelements_to_send;
-				global_nelements_to_send += A_array[id].nelements_to_send;
-			}
+			get_offsets<CSRMatrix, int>(global_nelements_to_send,
+			                            sing->nelements_to_send,
+			                            nelements_to_send_offset,
+			                            numboxes,
+			                            A_array,
+			                            [](const CSRMatrix &A) -> int
+						    {
+							    return A.nelements_to_send;
+						    });
 
 			// this allocated the arrays internally
 			sing->allocate_send(global_nsend_neighbors, global_nelements_to_send);

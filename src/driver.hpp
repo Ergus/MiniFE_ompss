@@ -145,7 +145,7 @@ namespace miniFE
 
 		timer_type t_mesh_fill = mytimer() - t0;
 		timer_type t_total = mytimer() - t_start;
-		printf("mesh_fill %g, total_time: %g\n", mesh_fill, t_total);
+		printf("mesh_fill %g, total_time: %g\n", t_mesh_fill, t_total);
 
 		//Declare matrix object array
 		CSRMatrix *A_array = new CSRMatrix[numboxes];
