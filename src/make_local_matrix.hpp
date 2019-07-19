@@ -272,11 +272,11 @@ namespace miniFE {
 									\
 		in(recv_neighbors_global[0; global_nrecv_neighbors])	\
 		in(recv_length_global[0; global_nrecv_neighbors])	\
-		inout(recv_ptr_global[0; global_nrecv_neighbors])	\
+		weakout(recv_ptr_global[0; global_nrecv_neighbors])	\
 									\
 		in(external_index_global[0; global_nexternals_global])	\
 									\
-		out(elements_to_send_local[0; nelements_to_send_local])
+		weakout(elements_to_send_local[0; nelements_to_send_local])
 	void set_send_info_task(CSRMatrix *A_array, size_t id,
 	                        size_t numboxes,
 
@@ -337,17 +337,17 @@ namespace miniFE {
 
 					// How many elements I will send to it
 					const int nsend_to_i_j = A_i->recv_length[j];
+					double **A_i_recv_ptr_j = &(A_i->recv_ptr[j]); // Remote pointer to me
 
 					#pragma oss task		\
-						in(A_i[0])		\
-						out(A_i->recv_ptr[j; 1])	\
+						out(A_i_recv_ptr_j[0; 1])	\
 						in(ptr_remote[0; nsend_to_i_j]) \
 					 	out(ptr_local[0; nsend_to_i_j])
 					{
 						// inform the remote about my pointer
-						A_i->recv_ptr[j] = ptr_for_remote;
+						A_i_recv_ptr_j[0] = ptr_for_remote;
 						dbvprintf("Setting A_[%zu]->recv_ptr[%d](%p) = %p\n",
-						          send_neighbor_i, j, &(A_i->recv_ptr[j]), A_i->recv_ptr[j]);
+						          send_neighbor_i, j, &(A_i_recv_ptr_j), A_i_recv_ptr_j);
 
 						for (int k = 0; k < nsend_to_i_j; ++k) {
 							const int id_to_send_global = ptr_remote[k];

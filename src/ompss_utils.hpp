@@ -120,6 +120,9 @@ std::ostream &array_to_stream(const T *in, size_t size,
 template <typename T>
 void print_vector(std::string vname, size_t size, const  T *vect, std::ostream &stream = std::cout)
 {
+	#ifdef VERBOSE
+	stream << "Node: " << nanos6_get_cluster_node_id() << ": ";
+	#endif
 	stream << vname
 	       << "(" << vect << ":" << size * sizeof(T) << ")"
 	       << "[" << size << "]={";

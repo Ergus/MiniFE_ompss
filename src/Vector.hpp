@@ -116,11 +116,12 @@ namespace miniFE
 	                     size_t numboxes,
 	                     const int *start, const int *length)
 	{
-		int *start_idx = (int *) alloca(numboxes * sizeof(int));
 
 		int elements = 0;
+		int *Voffsets = (int *) alloca(numboxes * sizeof(int));
+
 		for (size_t i = 0; i < numboxes; ++i) {
-			start_idx[i] = elements;
+			Voffsets[i] = elements;
 			elements += length[i];
 		}
 
@@ -129,7 +130,7 @@ namespace miniFE
 		assert(tmp);
 
 		for (size_t i = 0; i < numboxes; ++i)
-			b_array[i].init(start[i], length[i], &(tmp[start_idx[i]]));
+			b_array[i].init(start[i], length[i], &(tmp[Voffsets[i]]));
 	}
 
 

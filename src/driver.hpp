@@ -180,16 +180,16 @@ namespace miniFE
 		// TODO: Task Here gene
 
 		{
-			int Astart[numboxes];
-			int Alength[numboxes];
+			int Vstart[numboxes];
+			int Vlength[numboxes];
 
 			for (size_t i = 0; i < numboxes; ++i) {
-				Astart[i] = A_array[i].first_row;
-				Alength[i] = A_array[i].nrows;
+				Vstart[i] = A_array[i].first_row;
+				Vlength[i] = A_array[i].nrows;
 			}
 
-			init_vector_all(b_array, &sing, numboxes, Astart, Alength);
-			init_vector_all(x_array, &sing, numboxes, Astart, Alength);
+			init_vector_all(b_array, &sing, numboxes, Vstart, Vlength);
+			init_vector_all(x_array, &sing, numboxes, Vstart, Vlength);
 		}
 
 		//Assemble finite-element sub-matrices and sub-vectors into the global linear system:
