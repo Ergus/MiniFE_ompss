@@ -221,14 +221,11 @@ namespace miniFE {
 		#pragma oss taskwait
 
 		normr = std::sqrt(rtrans_global);
-		std::cout << "Initial Residual = "<< normr << std::endl;
+		printf("Initial Residual = %g\n", normr);
 
 		double brkdown_tol = std::numeric_limits<double>::epsilon();
 
-		#ifdef MINIFE_DEBUG
-		std::ostream& os = outstream();
-		os << "brkdown_tol = " << brkdown_tol << std::endl;
-		#endif
+		dbprintf("brkdown_tol = %g\n", brkdown_tol);
 
 		for (int k = 1; k <= max_iter && normr > tolerance; ++k) {
 

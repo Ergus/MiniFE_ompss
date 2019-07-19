@@ -99,6 +99,8 @@ namespace miniFE
 		const int global_ny = global_box[1][1];
 		const int global_nz = global_box[2][1];
 
+		std::cout << "Global Box: " << global_box << std::endl;
+
 		// TODO: imbalance is implemented but not tested yet
 		// if (params.load_imbalance > 0)
 		// 	add_imbalance<GlobalOrdinal>(global_box, local_boxes, numboxes,
@@ -113,7 +115,6 @@ namespace miniFE
 		//mesh that doesn't actually store mesh data.
 
 		timer_type t_start = mytimer();
-		timer_type t0 = mytimer();
 
 		// Tasks here (is not really needed, just to paralelize)
 		Box *local_node_box_array = new Box[numboxes];
@@ -127,8 +128,7 @@ namespace miniFE
 			}
 		}
 
-		std::cout << "Global Box: " << global_box << std::endl;
-
+		timer_type t0 = mytimer();
 		simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
 
 		for (size_t i = 0; i < numboxes; ++i) {
@@ -140,13 +140,12 @@ namespace miniFE
 			               numboxes);
 
 		}
-		//#pragma oss taskwait
+		#pragma oss taskwait
 
 
-		timer_type mesh_fill = mytimer() - t0;
+		timer_type t_mesh_fill = mytimer() - t0;
 		timer_type t_total = mytimer() - t_start;
-
-		std::cout << mesh_fill << "s, total time: " << t_total << std::endl;
+		printf("mesh_fill %g, total_time: %g\n", mesh_fill, t_total);
 
 		//Declare matrix object array
 		CSRMatrix *A_array = new CSRMatrix[numboxes];

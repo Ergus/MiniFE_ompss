@@ -159,7 +159,7 @@ namespace miniFE
 		}
 	}
 
-	void dot2_task(Vector *x, double *ret)
+	void dot2_task(const Vector *x, double *ret)
 	{
 		double *xcoefs = x->coefs;
 		size_t xlocal_size = x->local_size;

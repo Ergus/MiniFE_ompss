@@ -112,11 +112,11 @@ namespace miniFE
 	}; //class simple_mesh_description
 
 
-	// #pragma oss task				\
-	// 	inout(mesh[0])				\
-	// 	in(global_box_in[0])			\
-	// 	in(local_boxes_array[0; numboxes])	\
-	// 	in(local_node_box_array[0; numboxes])
+	#pragma oss task				\
+		out(mesh[0])				\
+		in(global_box_in[0])			\
+		in(local_boxes_array[0; numboxes])	\
+	 	in(local_node_box_array[0; numboxes])
 	void init_mesh_task(simple_mesh_description *mesh,
 	                    const Box *global_box_in,
 	                    const Box *local_boxes_array,    // Global boxes
