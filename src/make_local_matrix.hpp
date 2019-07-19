@@ -64,7 +64,7 @@ namespace miniFE {
 	                        size_t Annz, size_t Anrows)
 	{
 
-		//dbvwrite(A);
+		dbvwrite(A);
 
 		// First count and find the external elements
 		// And invert the externals

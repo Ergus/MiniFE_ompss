@@ -25,18 +25,36 @@
 #include <set>
 #include <map>
 #include <cstring>
+#include <fstream>      // std::ofstream
+
+// nanos conditional macros here
 
 #ifdef NANOS6
 #include "nanos6.h"
+#define dmalloc(size) nanos6_dmalloc(size, nanos6_equpart_distribution, 0, NULL)
+#define lmalloc(size) nanos6_lmalloc(size)
+#define dfree(ptr, size) nanos6_dfree(ptr, size)
+#define lfree(ptr, size) nanos6_lfree(ptr, size)
 #else
 #define nanos6_get_cluster_node_id() 0
 #define nanos6_get_cluster_nodes() 1
+
+#define dmalloc(size) malloc(size)
+#define lmalloc(size) malloc(size)
+#define dfree(ptr, size) free(ptr)
+#define lfree(ptr, size) free(ptr)
 #endif
 
 
 // General use macros Here
+
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
+
+inline std::string prefix(std::string caller, std::string file, int line, std::string varname) {
+	std::string ret = "VERB_" + caller + "_"  + std::to_string(line) + "_" + varname + "_";
+	return ret;
+}
 
 #define REGISTER_ELAPSED_TIME(time_inc, time_total)			\
 	{								\
@@ -45,39 +63,42 @@
 	}
 
 // Debug conditional macros here.
+
 #ifndef NDEBUG
 #define dbprintf(...) fprintf(stderr, __VA_ARGS__)
-#define dbvprint_vector(...) _print_vector(__VA_ARGS__)
+#define dbprint_vector(...) _print_vector(__VA_ARGS__)
 #else
 #define dbprintf(...)
-#define dbvprint_vector(...)
+#define dbprint_vector(...)
 #endif
 
-#if !defined NDEBUG && defined VERBOSE
+#ifdef VERBOSE
 #define dbvprintf(ARG, ...) fprintf(stderr, "Node: %d: " ARG, nanos6_get_cluster_node_id(), ##__VA_ARGS__)
-#if VERBOSE == 2
-#define dbv2printf(...) fprintf(stderr, __VA_ARGS__)
-#define dbv2print_vector(...) _print_vector(__VA_ARGS__)
-#else
-#define dbv2printf(...)
-#define dbv2print_vector(...)
-#endif
-#else
-#define dbvprintf(...)
-#define dbv2printf(...)
-#define dbv2print_vector(...)
-#endif
-
-#if !defined NDEBUG && defined VERBOSE
+#define dbvwrite(var) write(var, prefix(__func__, __FILE__, __LINE__, #var) )
+#define dbvprint_vector(...) _print_vector(__VA_ARGS__)
 #define rrd_malloc(size) _rrd_malloc(size, __FILE__ ":"  STR(__LINE__))
 #define rrl_malloc(size) _rrl_malloc(size, __FILE__ ":"  STR(__LINE__))
 #define rrd_free(var, size) _rrd_free(var, size, __FILE__ ":"  STR(__LINE__) "(" #var ")")
 #define rrl_free(var, size) _rrl_free(var, size, __FILE__ ":"  STR(__LINE__) "(" #var ")")
 #else
+#define dbvprintf(...)
+#define dbvwrite(var)
+#define dbvprint_vector(...)
 #define rrd_malloc(size) _rrd_malloc(size)
 #define rrl_malloc(size) _rrl_malloc(size)
 #define rrd_free(var, size) _rrd_free(var, size)
 #define rrl_free(var, size) _rrl_free(var, size)
+#endif
+
+
+#if (VERBOSE > 1)
+#define dbv2printf(...) fprintf(stderr, __VA_ARGS__)
+#define dbv2print_vector(...) _print_vector(__VA_ARGS__)
+#define dbv2write(var) _write(var, "VERB_"__func__ "_" __FILE__ ":"  STR(__LINE__) "_" #var "_")
+#else
+#define dbv2printf(...)
+#define dbv2print_vector(...)
+#define dbv2write(var)
 #endif
 
 // General Purpose functions
@@ -133,9 +154,9 @@ inline void reduce_sum_task(T *vout, const T *vin, size_t size)
 		for (size_t i = 0; i < size; ++i)
 			*vout += vin[i];
 
-		#ifndef VERBOSE
 		dbvprint_vector("Reducing: ", size, vin);
-		std::cout << *vout << std::endl;
+		#ifdef VERBOSE
+		std::cout << " = " << *vout << std::endl;
 		#endif
 	}
 }
@@ -156,13 +177,9 @@ inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
 	}
 }
 
-
-#ifdef NANOS6 // ===============================================================
-
-// Distributed Memory
 inline void *_rrd_malloc(size_t size, const char info[] = "")
 {
-	void *ret = nanos6_dmalloc(size, nanos6_equpart_distribution, 0, NULL);
+	void *ret = dmalloc(size);
 	dbv2printf("%s %s(%lu) = [%p -> %p]\n", info, __func__, size,  ret, (char*)ret + size);
 
 	assert(size == 0 || ret != NULL);
@@ -171,15 +188,14 @@ inline void *_rrd_malloc(size_t size, const char info[] = "")
 
 inline void _rrd_free(void *in, size_t size, const char info[] = "")
 {
-	dbv2printf("%s %s(%p, %lu)\n", info, __PRETTY_FUNCTION__, in, size);
-	nanos6_dfree(in, size);
+	dbv2printf("%s %s(%p, %lu)\n", info, __func__, in, size);
+	dfree(in, size);
 }
 
 inline void *_rrl_malloc(size_t size, const char info[] = "")
 {
-	void *ret = nanos6_lmalloc(size);
-	dbv2printf("%s %s(%lu) = [%p -> %p]\n",
-	          info, __func__, size, ret, (char*)ret + size);
+	void *ret = lmalloc(size);
+	dbv2printf("%s %s(%lu) = [%p -> %p]\n", info, __func__, size, ret, (char*)ret + size);
 	assert(size == 0 || ret != NULL);
 
 	return ret;
@@ -188,7 +204,7 @@ inline void *_rrl_malloc(size_t size, const char info[] = "")
 inline void _rrl_free(void *in, size_t size, const char info[] = "")
 {
 	dbv2printf("%s %s(%p, %lu)\n", info, __func__, in, size);
-	nanos6_lfree(in, size);
+	lfree(in, size);
 }
 
 template<typename T, typename Container>
@@ -200,71 +216,38 @@ size_t stl_to_global_task(T *vout, const Container &vin)
 	if (sz == 0)
 		return 0;
 
+	#ifdef NANOS6
 	T *tmp = (T *) rrl_malloc(sz * sizeof(T));
+	#else
+	T *tmp = vout;
+	#endif
 
-	dbvprintf("STL copy %ld elements\n", sz);
+	dbvprintf("STL copy %ld elements -> %p\n", sz, (void *) vout);
+
 	// Copy from container to local memory, this is initialization any way.
 	size_t i = 0;
 	for (const T &a : vin)
 		tmp[i++] = a;
 
+	#ifdef NANOS6
 	ompss_memcpy_task(vout, tmp, sz * sizeof(T));
 
 	#pragma oss taskwait
 	rrl_free(tmp, sz * sizeof(T));
+	#endif
 
 	return sz;
 }
 
-#else // NANOS6 ================================================================
-
-static inline void *_rrd_malloc(size_t size, const char info[] = "")
+template<typename T>
+void write(const T *A, std::string prefix)
 {
-	dbv2printf("%s %s(%ld) = ", info, __func__, size);
-	void *ret = malloc(size);
-	dbv2printf("[%p -> %p]\n", ret, (char*)ret + size);
-
-	return ret;
+	std::string filename = prefix + std::to_string(A->id) + ".verb";
+	std::ofstream stream(filename);
+	assert(stream.is_open());
+	A->write(stream);
+	stream.close();
 }
 
-static inline void _rrd_free(void *in, size_t size, const char info[] = "")
-{
-	dbv2printf("%s %s(%p, %ld)\n", info, __func__, in, size);
-	free(in);
-}
-
-static inline void *_rrl_malloc(size_t size, const char info[] = "")
-{
-	dbv2printf("%s %s(%ld) = ", info, __func__, size);
-	void *ret = malloc(size);
-	assert(size == 0 || ret != NULL);
-	dbv2printf("Using libc lmalloc [%p -> %p] size %ld\n",
-		 ret, (char*)ret + size, size);
-
-	return ret;
-}
-
-static inline void _rrl_free(void *in, size_t size, const char info[] = "")
-{
-	dbv2printf("%s %s(%p, %ld)\n", info, __func__, in, size);
-	free(in);
-}
-
-template<typename T, typename Container>
-size_t stl_to_global_task(T *vout, const Container &vin)
-{
-	const size_t sz = vin.size();
-
-	// Copy from container to local memory, this is initialization any way.
-	size_t i = 0;
-	for (const T &a : vin)
-		vout[i++] = a;
-
-	dbvprintf("STL copy %ld elements\n", sz);
-
-	return sz;
-}
-
-#endif // NANOS6 ===============================================================
 
 #endif // OMPSS_UTILS_HPP
