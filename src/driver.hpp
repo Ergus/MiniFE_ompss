@@ -223,18 +223,18 @@ namespace miniFE
 				Vector *b_i = &b_array[i];
 
 				impose_dirichlet_task(0.0,
-				                 A_i,
-				                 b_i,
-				                 global_nx + 1, global_ny + 1, global_nz + 1,
-				                 mesh_i->ompss2_bc_rows_0,
-				                 mesh_i->bc_rows_0_size);
+				                      A_i,
+				                      b_i,
+				                      global_nx + 1, global_ny + 1, global_nz + 1,
+				                      mesh_i->ompss2_bc_rows_0,
+				                      mesh_i->bc_rows_0_size);
 
 				impose_dirichlet_task(1.0,
-				                 A_i,
-				                 b_i,
-				                 global_nx + 1, global_ny + 1, global_nz + 1,
-				                 mesh_i->ompss2_bc_rows_1,
-				                 mesh_i->bc_rows_1_size);
+				                      A_i,
+				                      b_i,
+				                      global_nx + 1, global_ny + 1, global_nz + 1,
+				                      mesh_i->ompss2_bc_rows_1,
+				                      mesh_i->bc_rows_1_size);
 
 			}
 

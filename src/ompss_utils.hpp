@@ -75,7 +75,7 @@ inline std::string prefix(std::string caller, std::string file, int line, std::s
 #ifdef VERBOSE
 #define dbvprintf(ARG, ...) fprintf(stderr, "Node: %d: " ARG, nanos6_get_cluster_node_id(), ##__VA_ARGS__)
 #define dbvwrite(var) write(var, prefix(__func__, __FILE__, __LINE__, #var) )
-#define dbvprint_vector(...) _print_vector(__VA_ARGS__)
+#define dbvprint_vector(...) print_vector(__VA_ARGS__)
 #define rrd_malloc(size) _rrd_malloc(size, __FILE__ ":"  STR(__LINE__))
 #define rrl_malloc(size) _rrl_malloc(size, __FILE__ ":"  STR(__LINE__))
 #define rrd_free(var, size) _rrd_free(var, size, __FILE__ ":"  STR(__LINE__) "(" #var ")")
@@ -117,7 +117,7 @@ std::ostream &array_to_stream(const T *in, size_t size,
 
 
 template <typename T>
-void _print_vector(std::string vname, size_t size, const  T *vect, std::ostream &stream = std::cout)
+void print_vector(std::string vname, size_t size, const  T *vect, std::ostream &stream = std::cout)
 {
 	stream << vname
 	       << "(" << vect << ":" << size * sizeof(T) << ")"
@@ -208,35 +208,20 @@ inline void _rrl_free(void *in, size_t size, const char info[] = "")
 }
 
 template<typename T, typename Container>
-size_t stl_to_global_task(T *vout, const Container &vin)
+T *stl_to_local(size_t &copied, const Container &vin)
 {
-	const size_t sz = vin.size();
+	copied = vin.size();
 
-	dbvprintf("STL copy %ld elements -> %p\n", sz, (void *) vout);
-	if (sz == 0)
-		return 0;
+	T *ret = (T *) rrl_malloc(copied * sizeof(T));
 
-	#ifdef NANOS6
-	T *tmp = (T *) rrl_malloc(sz * sizeof(T));
-	#else
-	T *tmp = vout;
-	#endif
-
-	dbvprintf("STL copy %ld elements -> %p\n", sz, (void *) vout);
+	dbvprintf("STL copy %ld elements -> %p\n", copied, (void *) ret);
 
 	// Copy from container to local memory, this is initialization any way.
 	size_t i = 0;
 	for (const T &a : vin)
-		tmp[i++] = a;
+		ret[i++] = a;
 
-	#ifdef NANOS6
-	ompss_memcpy_task(vout, tmp, sz * sizeof(T));
-
-	#pragma oss taskwait
-	rrl_free(tmp, sz * sizeof(T));
-	#endif
-
-	return sz;
+	return ret;
 }
 
 template<typename T>

@@ -45,8 +45,7 @@ namespace miniFE
 			id(-1), is_copy(false),
 			ompss2_bc_rows_0(nullptr), ompss2_bc_rows_1(nullptr),
 			bc_rows_0_size(0), bc_rows_1_size(0),
-			ompss2_ids_to_rows(nullptr), ids_to_rows_size(0),
-			buffer(nullptr), full_allocation(0)
+			ompss2_ids_to_rows(nullptr), ids_to_rows_size(0)
 		{}
 
 		simple_mesh_description(const simple_mesh_description &in):
@@ -56,16 +55,11 @@ namespace miniFE
 			bc_rows_0_size(in.bc_rows_0_size),
 			bc_rows_1_size(in.bc_rows_1_size),
 			ompss2_ids_to_rows(in.ompss2_ids_to_rows),
-			ids_to_rows_size(in.ids_to_rows_size),
-			buffer(in.buffer),
-			full_allocation(in.full_allocation)
+			ids_to_rows_size(in.ids_to_rows_size)
 		{}
 
 		~simple_mesh_description()
 		{
-			if (!is_copy)
-				rrd_free(buffer, full_allocation);
-
 		}
 
 		// Arrays allocations (boxes can go in local memory)
@@ -111,9 +105,6 @@ namespace miniFE
 
 		std::pair<int,int> *ompss2_ids_to_rows;
 		size_t ids_to_rows_size;
-
-		char *buffer;
-		size_t full_allocation;
 
 		Box global_box;
 		Box local_box;
@@ -322,57 +313,15 @@ namespace miniFE
 		}
 
 		// Copy the sets to ompss supported ones.
-		// TODO: this is a workaround
-		{
-			mesh->bc_rows_0_size = bc_rows_0.size();
-			mesh->bc_rows_1_size = bc_rows_1.size();
-			mesh->ids_to_rows_size = map_ids_to_rows.size();
+		// TODO: this is a workaround due to the dmalloc issue.
+		// I am using an lmalloc here that is never released to avoid double copy and taskwaits
+		mesh->ompss2_bc_rows_0 = stl_to_local<int,
+		                                      std::set<int>>(mesh->bc_rows_0_size, bc_rows_0);
+		mesh->ompss2_bc_rows_1 = stl_to_local<int,
+		                                      std::set<int>>(mesh->bc_rows_1_size, bc_rows_1);
 
-			mesh->full_allocation =
-				mesh->bc_rows_0_size * sizeof(int) +
-				mesh->bc_rows_1_size * sizeof(int) +
-				mesh->ids_to_rows_size * sizeof(std::pair<int,int>);
-			mesh->buffer = (char *) rrd_malloc(mesh->full_allocation);
-
-			mesh->ompss2_bc_rows_0 = (int *) mesh->buffer;
-			mesh->ompss2_bc_rows_1 = (int *) &(mesh->buffer[mesh->bc_rows_0_size * sizeof(int)]);
-			mesh->ompss2_ids_to_rows =
-				(std::pair<int,int> *) &(mesh->buffer[(mesh->bc_rows_0_size +
-				                                       mesh->bc_rows_1_size) * sizeof(int)]);
-
-		}
-
-		mesh->bc_rows_0_size = stl_to_global_task(mesh->ompss2_bc_rows_0, bc_rows_0);
-		mesh->bc_rows_1_size = stl_to_global_task(mesh->ompss2_bc_rows_1, bc_rows_1);
-
-		mesh->ids_to_rows_size =
-			stl_to_global_task(mesh->ompss2_ids_to_rows, map_ids_to_rows);
-
-	}
-
-	inline void write_task(std::string filename, const simple_mesh_description &Min, size_t id)
-	{
-		simple_mesh_description Mcopy(Min);  // This is a work around for the dependency issue
-
-		#pragma oss task					\
-			in(Mcopy)						\
-			in(Mcopy.ompss2_bc_rows_0[0; Mcopy.bc_rows_0_size]) \
-			in(Mcopy.ompss2_bc_rows_1[0; Mcopy.bc_rows_1_size]) \
-			in(Mcopy.ompss2_ids_to_rows[0; Mcopy.ids_to_rows_size])
-		{
-			std::ofstream stream;
-
-			if (id == 0)
-				stream.open(filename, std::ofstream::out);
-			else
-				stream.open(filename, std::ofstream::app);
-
-			Mcopy.write(stream);
-
-			stream.close();
-		}
-
-		#pragma oss taskwait
+		mesh->ompss2_ids_to_rows = stl_to_local<std::pair<int, int>,
+		                                        std::map<int,int>>(mesh->ids_to_rows_size, map_ids_to_rows);
 	}
 
 }//namespace miniFE
