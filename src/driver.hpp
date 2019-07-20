@@ -155,14 +155,9 @@ namespace miniFE
 			std::cout << "generating matrix structure..." << std::endl;
 			timer_type gen_structure = mytimer();
 
-			for (size_t i = 0; i < numboxes; ++i) {
-				generate_matrix_structure_task(&A_array[i],
-				                               &mesh_array[i],
-				                               mesh_array[i].ompss2_ids_to_rows,
-				                               mesh_array[i].ids_to_rows_size,
-				                               i);
-
-			}
+			generate_matrix_structure_all(A_array,
+			                              mesh_array,
+			                              numboxes);
 
 			//#pragma oss taskwait
 			REGISTER_ELAPSED_TIME(gen_structure, t_total);

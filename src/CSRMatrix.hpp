@@ -48,6 +48,7 @@ namespace miniFE
 		bool has_local_indices, is_copy;
 		int *rows;
 		int *row_offsets;
+		int *row_coords;
 		//int *row_offsets_external;
 		size_t global_nrows, nrows, nnz;
 
@@ -75,7 +76,7 @@ namespace miniFE
 
 		CSRMatrix()
 			: has_local_indices(false), is_copy(false),
-			  rows(nullptr), row_offsets(nullptr), //row_offsets_external(),
+			  rows(nullptr), row_offsets(nullptr), row_coords(nullptr),
 			  global_nrows(-1), nrows(-1),
 			  nnz(0), packed_cols(nullptr), packed_coefs(nullptr),
 			  first_row(-1), stop_row(-1), num_cols(0),
@@ -241,71 +242,78 @@ namespace miniFE
 
 	}; // class CSRMatrix
 
-	void generate_matrix_structure_task(CSRMatrix *A,
-	                                    const simple_mesh_description *mesh,
-	                                    std::pair<int,int> *mesh_ompss2_ids_to_rows,
-	                                    size_t mesh_ids_to_rows_size,
-	                                    size_t _id)
+	void generate_matrix_structure_all(CSRMatrix *A_array,
+	                                   const simple_mesh_description *mesh_array,
+	                                   size_t numboxes)
 	{
+		for (int i = 0; i < numboxes; ++i) {
 
-		#ifdef VERBOSE
-		std::string filename = "VERB_mesh_generate_matrix_structure_task" +
-			std::to_string(_id) + ".verb";
-		std::ofstream stream(filename);
-		mesh->write(stream);
-		stream.close();
-		#endif
+			CSRMatrix *A = &A_array[i];
+			const simple_mesh_description *mesh = &mesh_array[i];
 
-		int global_nodes[3] = {
-			mesh->global_box[0][1] + 1,
-			mesh->global_box[1][1] + 1,
-			mesh->global_box[2][1] + 1 };
+			dbvwrite(mesh);
+			std::pair<int,int> *mesh_ompss2_ids_to_rows = mesh_array[i].ompss2_ids_to_rows;
+			size_t mesh_ids_to_rows_size = mesh_array[i].ids_to_rows_size;
 
-		A->id = _id;
-		A->nrows = mesh->extended_box.get_num_ids();
+			int global_nodes[3] = {
+				mesh->global_box[0][1] + 1,
+				mesh->global_box[1][1] + 1,
+				mesh->global_box[2][1] + 1 };
 
-		//num-owned-nodes in each dimension is num-elems+1
-		//only if num-elems > 0 in that dimension *and*
-		//we are at the high end of the global range in that dimension:
-		A->global_nrows = global_nodes[0] * global_nodes[1] * global_nodes[2];
+			A->id = i;
+			A->nrows = mesh->extended_box.get_num_ids();
 
-		A->rows = (int *) rrd_malloc(A->nrows * sizeof(int));
-		A->row_offsets = (int *) rrd_malloc((A->nrows + 1) * sizeof(int));
+			//num-owned-nodes in each dimension is num-elems+1
+			//only if num-elems > 0 in that dimension *and*
+			//we are at the high end of the global range in that dimension:
+			A->global_nrows = global_nodes[0] * global_nodes[1] * global_nodes[2];
 
-		int *row_coords = (int *) rrl_malloc(A->nrows * 3 * sizeof(int));
+			A->rows = (int *) rrd_malloc(A->nrows * sizeof(int));
+			A->row_offsets = (int *) rrd_malloc((A->nrows + 1) * sizeof(int));
+			A->row_coords = (int *) rrl_malloc(A->nrows * 3 * sizeof(int));
 
-		init_offsets_task(row_coords,
-		                  A->rows,
-		                  A->row_offsets,
-		                  global_nodes,
-		                  mesh,
-		                  mesh->ompss2_ids_to_rows,
-		                  mesh->ids_to_rows_size,
-		                  A->global_nrows,
-		                  A->nrows,
-		                  &(A->nnz),
-		                  &(A->first_row),
-		                  &(A->stop_row));
+			init_offsets_task(A->row_coords,
+			                  A->rows,
+			                  A->row_offsets,
+			                  global_nodes,
+			                  mesh,
+			                  mesh->ompss2_ids_to_rows,
+			                  mesh->ids_to_rows_size,
+			                  A->global_nrows,
+			                  A->nrows,
+			                  &(A->nnz),
+			                  &(A->first_row),
+			                  &(A->stop_row));
 
-
-		#pragma oss taskwait
-		A->packed_cols = (int *) rrd_malloc(A->nnz * sizeof(int));
-		A->packed_coefs = (double *) rrd_malloc(A->nnz * sizeof(double));
-
-		init_matrix_task(row_coords,
-		                 global_nodes,
-		                 A->global_nrows,
-		                 mesh,
-		                 mesh->ompss2_ids_to_rows,
-		                 mesh->ids_to_rows_size,
-		                 A->row_offsets,
-		                 A->packed_cols,
-		                 A->packed_coefs,
-		                 A->nrows,
-		                 A->nnz);
+		}
 
 		#pragma oss taskwait
-		rrl_free(row_coords, A->nrows * 3 * sizeof(int));
+
+		for (int i = 0; i < numboxes; ++i) {
+			CSRMatrix *A = &A_array[i];
+			const simple_mesh_description *mesh = &mesh_array[i];
+
+			A->packed_cols = (int *) rrd_malloc(A->nnz * sizeof(int));
+			A->packed_coefs = (double *) rrd_malloc(A->nnz * sizeof(double));
+
+			int global_nodes[3] = {
+				mesh->global_box[0][1] + 1,
+				mesh->global_box[1][1] + 1,
+				mesh->global_box[2][1] + 1 };
+
+			init_matrix_task(A->row_coords,
+			                 global_nodes,
+			                 A->global_nrows,
+			                 mesh,
+			                 mesh->ompss2_ids_to_rows,
+			                 mesh->ids_to_rows_size,
+			                 A->row_offsets,
+			                 A->packed_cols,
+			                 A->packed_coefs,
+			                 A->nrows,
+			                 A->nnz);
+		}
+		#pragma oss taskwait
 	}
 
 	void matvec_task(CSRMatrix *A, Vector *x, Vector *y,
