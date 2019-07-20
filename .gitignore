@@ -11,3 +11,4 @@ VERB*.verb
 vgcore.*
 core.miniFE*
 mcxx_*.cpp
+myhostfile

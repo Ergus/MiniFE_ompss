@@ -37,6 +37,17 @@ public:
 	int vector_global_size[MAXVECTORS]; // TODO: this is totally arbitrary
 	double *vector_coefs[MAXVECTORS];
 
+	int global_nrows;
+	int *rows;
+	int global_nrow_offsets;
+	int *row_offsets;
+	int global_nrow_coords;
+	int *row_coords;
+
+	int global_nnz;
+	int *packed_cols;
+	double *packed_coefs;
+
 	singleton(size_t _numboxes) :
 		numboxes(_numboxes),
 		global_nrecv_neighbors(-1),
@@ -61,7 +72,18 @@ public:
 		elements_to_send(nullptr),
 		send_buffer(nullptr),
 
-		nvectors(0)
+		nvectors(0),
+
+		global_nrows(-1),
+		rows(nullptr),
+		global_nrow_offsets(-1),
+		row_offsets(nullptr),
+		global_nrow_coords(-1),
+		row_coords(nullptr),
+
+		global_nnz(-1),
+		packed_cols(nullptr),
+		packed_coefs(nullptr)
 	{
 		for (size_t i = 0 ; i < MAXVECTORS; ++i) {
 			vector_global_size[i] = -1;
@@ -103,6 +125,20 @@ public:
 				assert(vector_global_size[i] >= 0);
 				rrd_free(vector_coefs[i], vector_global_size[nvectors] * sizeof(double));
 			}
+		}
+
+		if (global_nrows > 0)
+			rrd_free(rows, global_nrows * sizeof(int));
+
+		if (global_nrow_offsets > 0)
+			rrd_free(row_offsets, global_nrow_offsets * sizeof(int));
+
+		if(global_nrow_coords > 0)
+			rrd_free(row_coords, global_nrow_coords * sizeof(int));
+
+		if (global_nnz > 0) {
+			rrd_free(packed_cols, global_nnz * sizeof(int));
+			rrd_free(packed_coefs, global_nnz * sizeof(double));
 		}
 
 	}
@@ -165,6 +201,58 @@ public:
 		return rrl_free(ptr, sz);
 	}
 
+	template <typename T>
+	void allocate_rows(T *A_array, size_t numboxes)
+	{
+		allocate_lambda<T, int>(global_nrows, rows,
+		                numboxes, A_array,
+		                [](const T &A){return A.nrows;},
+		                [](T &A, int *val){A.rows = val;});
+
+		allocate_lambda<T, int>(global_nrow_offsets, row_offsets,
+		                numboxes, A_array,
+		                [](const T &A){return A.nrows + 1;},
+		                [](T &A, int *val){A.row_offsets = val;});
+
+		allocate_lambda<T, int>(global_nrow_coords, row_coords,
+		                numboxes, A_array,
+		                [](const T &A){return 3 * A.nrows;},
+		                [](T &A, int *val){A.row_coords = val;});
+
+	}
+
+	template <typename T>
+	void allocate_packed(T *A_array, size_t numboxes)
+	{
+		allocate_lambda<T, int>(global_nnz, packed_cols,
+		                        numboxes, A_array,
+		                        [](const T &A){return A.nnz;},
+		                        [](T &A, int *val){A.packed_cols = val;});
+
+		allocate_lambda<T, double>(global_nnz, packed_coefs,
+		                           numboxes, A_array,
+		                           [](const T &A){return A.nnz;},
+		                           [](T &A, double *val){A.packed_coefs = val;});
+
+	}
+
+private:
+	template <typename T, typename R>
+	void allocate_lambda(int &total_size, R *buffer,
+	                     size_t numboxes, T *A_array,
+	                     std::function<int(const T &)> fun1,
+	                     std::function<void(T &, R*)> fun2)
+	{
+		int *indices = (int *) alloca(numboxes * sizeof(int));
+		int *offsets = (int *) alloca(numboxes * sizeof(int));
+
+		get_offsets(total_size, indices, offsets, numboxes, A_array, fun1);
+
+		buffer = (R *) rrd_malloc(total_size * sizeof(R));
+
+		for (size_t id = 0; id < numboxes; ++id)
+			fun2(A_array[id], &buffer[offsets[id]]);
+	}
 };
 
 

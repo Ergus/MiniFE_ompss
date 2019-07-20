@@ -121,7 +121,7 @@ template <typename T>
 void print_vector(std::string vname, size_t size, const  T *vect, std::ostream &stream = std::cout)
 {
 	#ifdef VERBOSE
-	stream << "\nNode: " << nanos6_get_cluster_node_id() << ": ";
+	stream << "Node: " << nanos6_get_cluster_node_id() << ": ";
 	#endif
 	stream << vname
 	       << "(" << vect << ":" << size * sizeof(T) << ")"
@@ -160,7 +160,7 @@ inline void reduce_sum_task(T *vout, const T *vin, size_t size)
 
 		dbvprint_vector("Reducing: ", size, vin);
 		#ifdef VERBOSE
-		std::cout << " = " << *vout;
+		std::cout << " = " << *vout << std::endl;
 		#endif
 	}
 }

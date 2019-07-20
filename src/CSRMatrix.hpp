@@ -126,6 +126,7 @@ namespace miniFE
 				assert(nrows > 0);
 				rrd_free(rows, nrows * sizeof(int));
 				rrd_free(row_offsets, (nrows + 1) * sizeof(int));
+				rrd_free(row_coords, 3 * nrows * sizeof(int));
 
 				//rrd_free(row_offsets_external, (nrows + 1) * sizeof(int));
 				assert(nnz > 0);
@@ -252,8 +253,6 @@ namespace miniFE
 			const simple_mesh_description *mesh = &mesh_array[i];
 
 			dbvwrite(mesh);
-			std::pair<int,int> *mesh_ompss2_ids_to_rows = mesh_array[i].ompss2_ids_to_rows;
-			size_t mesh_ids_to_rows_size = mesh_array[i].ids_to_rows_size;
 
 			int global_nodes[3] = {
 				mesh->global_box[0][1] + 1,
@@ -270,7 +269,7 @@ namespace miniFE
 
 			A->rows = (int *) rrd_malloc(A->nrows * sizeof(int));
 			A->row_offsets = (int *) rrd_malloc((A->nrows + 1) * sizeof(int));
-			A->row_coords = (int *) rrl_malloc(A->nrows * 3 * sizeof(int));
+			A->row_coords = (int *) rrd_malloc(A->nrows * 3 * sizeof(int));
 
 			init_offsets_task(A->row_coords,
 			                  A->rows,
