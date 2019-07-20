@@ -147,6 +147,8 @@ namespace miniFE
 		timer_type t_total = mytimer() - t_start;
 		printf("mesh_fill %g, total_time: %g\n", t_mesh_fill, t_total);
 
+		singleton sing(numboxes);
+
 		//Declare matrix object array
 		CSRMatrix *A_array = new CSRMatrix[numboxes];
 		{
@@ -170,7 +172,6 @@ namespace miniFE
 		}
 
 		assert(numboxes > 0);
-		singleton sing(numboxes);
 
 		// Declare vector objects array
 		Vector *b_array = new Vector[numboxes];

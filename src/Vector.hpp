@@ -44,17 +44,11 @@ namespace miniFE
 	struct Vector {
 
 		int startIndex;
-		size_t local_size;
+		size_t id, local_size;
 		double *coefs;
 
-		Vector() : startIndex(-1),
+		Vector() : startIndex(-1), id(-1),
 			   local_size(-1), coefs(nullptr)
-		{}
-
-		Vector(const Vector &in) :
-			startIndex(in.startIndex),
-			local_size(in.local_size),
-			coefs(in.coefs)
 		{}
 
 		~Vector()
@@ -74,9 +68,10 @@ namespace miniFE
 			return rrl_free(ptr, sz);
 		}
 
-		void init(const int startIdx, const int local_sz, double *ptr)
+		void init(size_t _id, int startIdx, size_t local_sz, double *ptr)
 		{
 			startIndex = startIdx;
+			id = _id;
 			local_size = local_sz;
 			coefs = ptr;
 
@@ -129,8 +124,8 @@ namespace miniFE
 
 		assert(tmp);
 
-		for (size_t i = 0; i < numboxes; ++i)
-			b_array[i].init(start[i], length[i], &(tmp[Voffsets[i]]));
+		for (size_t id = 0; id < numboxes; ++id)
+			b_array[id].init(id, start[id], length[id], &(tmp[Voffsets[id]]));
 	}
 
 

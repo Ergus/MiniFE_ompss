@@ -67,7 +67,7 @@ inline std::string prefix(std::string caller, std::string file, int line, std::s
 
 #ifndef NDEBUG
 #define dbprintf(...) fprintf(stderr, __VA_ARGS__)
-#define dbprint_vector(...) _print_vector(__VA_ARGS__)
+#define dbprint_vector(...) print_vector(__VA_ARGS__)
 #else
 #define dbprintf(...)
 #define dbprint_vector(...)
@@ -94,7 +94,7 @@ inline std::string prefix(std::string caller, std::string file, int line, std::s
 
 #if (VERBOSE > 1)
 #define dbv2printf(...) fprintf(stderr, __VA_ARGS__)
-#define dbv2print_vector(...) _print_vector(__VA_ARGS__)
+#define dbv2print_vector(...) print_vector(__VA_ARGS__)
 #define dbv2write(var) _write(var, "VERB_"__func__ "_" __FILE__ ":"  STR(__LINE__) "_" #var "_")
 #else
 #define dbv2printf(...)
@@ -121,7 +121,7 @@ template <typename T>
 void print_vector(std::string vname, size_t size, const  T *vect, std::ostream &stream = std::cout)
 {
 	#ifdef VERBOSE
-	stream << "Node: " << nanos6_get_cluster_node_id() << ": ";
+	stream << "\nNode: " << nanos6_get_cluster_node_id() << ": ";
 	#endif
 	stream << vname
 	       << "(" << vect << ":" << size * sizeof(T) << ")"
@@ -160,7 +160,7 @@ inline void reduce_sum_task(T *vout, const T *vin, size_t size)
 
 		dbvprint_vector("Reducing: ", size, vin);
 		#ifdef VERBOSE
-		std::cout << " = " << *vout << std::endl;
+		std::cout << " = " << *vout;
 		#endif
 	}
 }
@@ -237,6 +237,7 @@ void write(const T *A, std::string prefix)
 	A->write(stream);
 	stream.close();
 }
+
 
 
 template<typename T, typename R>

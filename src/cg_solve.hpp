@@ -251,7 +251,7 @@ namespace miniFE {
 			// rtrans_global is here because of tw above
 			normr = std::sqrt(rtrans_global);
 			if (k % print_freq == 0 || k == max_iter)
-				std::cout << "Iteration = " << k << "   Residual = " << normr << std::endl;
+				printf("\nIteration = %d Residual = %lf", k, normr);
 
 			double p_ap_dot[numboxes];
 			double p_ap_dot_global = 0.0;
