@@ -157,6 +157,7 @@ namespace miniFE
 
 			generate_matrix_structure_all(A_array,
 			                              mesh_array,
+			                              &sing,
 			                              numboxes);
 
 			//#pragma oss taskwait

@@ -123,12 +123,6 @@ namespace miniFE
 		{
 			if (!is_copy) {
 				// generate_matrix_structure
-				assert(nrows > 0);
-				rrd_free(rows, nrows * sizeof(int));
-				rrd_free(row_offsets, (nrows + 1) * sizeof(int));
-				rrd_free(row_coords, 3 * nrows * sizeof(int));
-
-				//rrd_free(row_offsets_external, (nrows + 1) * sizeof(int));
 				assert(nnz > 0);
 				rrd_free(packed_cols, nnz * sizeof(int));
 				rrd_free(packed_coefs, nnz * sizeof(double));
@@ -245,6 +239,7 @@ namespace miniFE
 
 	void generate_matrix_structure_all(CSRMatrix *A_array,
 	                                   const simple_mesh_description *mesh_array,
+	                                   singleton *sing,
 	                                   size_t numboxes)
 	{
 		for (int i = 0; i < numboxes; ++i) {
@@ -254,10 +249,6 @@ namespace miniFE
 
 			dbvwrite(mesh);
 
-			int global_nodes[3] = {
-				mesh->global_box[0][1] + 1,
-				mesh->global_box[1][1] + 1,
-				mesh->global_box[2][1] + 1 };
 
 			A->id = i;
 			A->nrows = mesh->extended_box.get_num_ids();
@@ -265,11 +256,24 @@ namespace miniFE
 			//num-owned-nodes in each dimension is num-elems+1
 			//only if num-elems > 0 in that dimension *and*
 			//we are at the high end of the global range in that dimension:
-			A->global_nrows = global_nodes[0] * global_nodes[1] * global_nodes[2];
-
 			A->rows = (int *) rrd_malloc(A->nrows * sizeof(int));
 			A->row_offsets = (int *) rrd_malloc((A->nrows + 1) * sizeof(int));
 			A->row_coords = (int *) rrd_malloc(A->nrows * 3 * sizeof(int));
+
+		}
+
+		//sing->allocate_rows(A_array);
+
+		for (int i = 0; i < numboxes; ++i) {
+
+			CSRMatrix *A = &A_array[i];
+			const simple_mesh_description *mesh = &mesh_array[i];
+			int global_nodes[3] = {
+				mesh->global_box[0][1] + 1,
+				mesh->global_box[1][1] + 1,
+				mesh->global_box[2][1] + 1 };
+
+			A->global_nrows = global_nodes[0] * global_nodes[1] * global_nodes[2];
 
 			init_offsets_task(A->row_coords,
 			                  A->rows,
@@ -283,7 +287,6 @@ namespace miniFE
 			                  &(A->nnz),
 			                  &(A->first_row),
 			                  &(A->stop_row));
-
 		}
 
 		#pragma oss taskwait

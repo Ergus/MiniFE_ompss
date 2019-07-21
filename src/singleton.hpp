@@ -202,7 +202,7 @@ public:
 	}
 
 	template <typename T>
-	void allocate_rows(T *A_array, size_t numboxes)
+	void allocate_rows(T *A_array)
 	{
 		allocate_lambda<T, int>(global_nrows, rows,
 		                numboxes, A_array,
