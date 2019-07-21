@@ -173,9 +173,7 @@ namespace miniFE
 		Vector *b_array = new Vector[numboxes];
 		Vector *x_array = new Vector[numboxes];
 
-
 		// TODO: Task Here gene
-
 		{
 			int Vstart[numboxes];
 			int Vlength[numboxes];

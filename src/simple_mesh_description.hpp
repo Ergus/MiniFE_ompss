@@ -92,8 +92,11 @@ namespace miniFE
 			stream << "extended_box: " << extended_box << "\n";
 
 			dbvprint_vector("bc_rows_0", bc_rows_0_size, ompss2_bc_rows_0, stream);
+			stream << std::endl;
 			dbvprint_vector("bc_rows_1", bc_rows_1_size, ompss2_bc_rows_1, stream);
+			stream << std::endl;
 			dbvprint_vector("ids_to_rows", ids_to_rows_size, ompss2_ids_to_rows, stream);
+			stream << std::endl;
 		}
 
 		int id;

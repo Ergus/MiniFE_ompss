@@ -93,8 +93,8 @@ namespace miniFE
 			row_offset += row_len;
 
 			size_t mat_row_len = 0;
-			int *mat_row_cols = NULL;
-			double *mat_row_coefs = NULL;
+			int *mat_row_cols = nullptr;
+			double *mat_row_coefs = nullptr;
 
 			mat.get_row_pointers(row, mat_row_len, mat_row_cols, mat_row_coefs);
 			if (mat_row_len == 0)

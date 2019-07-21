@@ -148,19 +148,31 @@ namespace miniFE
 
 		void get_row_pointers(int row, size_t &row_length, int *&cols, double *&coefs) const
 		{
-			ptrdiff_t local_row = -1;
-			//first see if we can get the local-row index using fast direct lookup:
-			if (nrows > 0) {
-				int idx = row - rows[0];
-				if (idx < (int)nrows && rows[idx] == row)
-					local_row = idx;
-			}
+			cols = nullptr;
+			coefs = nullptr;
+			row_length = 0;
 
-			//if we didn't get the local-row index using direct lookup, try a
-			//more expensive binary-search:
-			if (local_row == -1) {
+			// This solves a race condition in the original code
+			// and optimizes a very frequent case.
+			if (row < first_row || row > stop_row || nrows == 0)
+				return;
+
+			ptrdiff_t local_row = -1;
+
+			//first see if we can get the local-row index using fast direct lookup:
+			assert(row >= first_row);
+
+			const size_t idx = row - first_row;
+			if (idx < nrows && rows[idx] == row) {
+				local_row = idx;
+			} else {
+				//if we didn't get the local-row index using direct lookup, try a
+				//more expensive binary-search:
+
 				auto row_iter = std::lower_bound(rows, &rows[nrows], row);
 
+				// I keep  this because it is in the original code.
+				// But with the first check this should never happen.
 				//if we still haven't found row, it's not local so jump out:
 				if (row_iter == &rows[nrows] || *row_iter != row) {
 					row_length = 0;
@@ -169,6 +181,8 @@ namespace miniFE
 
 				local_row = row_iter - rows;
 			}
+
+			assert(local_row < nrows);
 
 			const int offset = row_offsets[local_row];
 			row_length = row_offsets[local_row + 1] - offset;
@@ -256,13 +270,19 @@ namespace miniFE
 			//num-owned-nodes in each dimension is num-elems+1
 			//only if num-elems > 0 in that dimension *and*
 			//we are at the high end of the global range in that dimension:
-			A->rows = (int *) rrd_malloc(A->nrows * sizeof(int));
+			//A->rows = (int *) rrd_malloc(A->nrows * sizeof(int));
 			A->row_offsets = (int *) rrd_malloc((A->nrows + 1) * sizeof(int));
 			A->row_coords = (int *) rrd_malloc(A->nrows * 3 * sizeof(int));
 
 		}
 
-		//sing->allocate_rows(A_array);
+		sing->allocate_rows(A_array);
+
+		for (size_t id = 1; id < numboxes; ++id) {
+			printf("A[%zu]->rows = %p %p\n", id, A_array[id].rows, (A_array[id].rows + A_array[id].nrows));
+			printf("A[%zu]->row_offsets = %p %p\n", id, A_array[id].row_offsets, (A_array[id].row_offsets + A_array[id].nrows + 1));
+
+		}
 
 		for (int i = 0; i < numboxes; ++i) {
 
@@ -398,6 +418,9 @@ namespace miniFE
 			inout(b[0])					\
 			inout(bcoefs[0; blocal_size])
 		{
+			dbvwrite(mesh);
+			dbvwrite(A);
+			dbvwrite(b);
 
 			Box local_elem_box(mesh->local_box);
 
@@ -424,16 +447,9 @@ namespace miniFE
 
 			perform_element_loop(*mesh, local_elem_box, *A, *b);
 
-			#ifdef VERBOSE
-			{
-				std::string filename = "VERB_assemble_FE_data_task_" +
-					std::to_string(id) + ".verb";
-				std::ofstream stream(filename);
-				A->write(stream);
-				stream.close();
-			}
-			#endif
-
+			dbvwrite(mesh);
+			dbvwrite(A);
+			dbvwrite(b);
 		}
 	}
 
