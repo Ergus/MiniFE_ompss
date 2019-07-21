@@ -221,7 +221,7 @@ public:
 	}
 
 	template <typename T>
-	void allocate_packed(T *A_array, size_t numboxes)
+	void allocate_packed(T *A_array)
 	{
 		allocate_lambda<T, int>(global_nnz, packed_cols,
 		                        A_array,
@@ -245,7 +245,7 @@ private:
 		int *indices = (int *) alloca(numboxes * sizeof(int));
 		int *offsets = (int *) alloca(numboxes * sizeof(int));
 
-		get_offsets<T, R>(total_size, indices, offsets, numboxes, A_array, fun1);
+		get_offsets<T, int>(total_size, indices, offsets, numboxes, A_array, fun1);
 
 		buffer = (R *) rrd_malloc(total_size * sizeof(R));
 

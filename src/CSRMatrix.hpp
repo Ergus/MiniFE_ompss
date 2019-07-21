@@ -45,11 +45,10 @@ namespace miniFE
 	class CSRMatrix {
 	public:
 		int id;
-		bool has_local_indices, is_copy;
+		bool has_local_indices;
 		int *rows;
 		int *row_offsets;
 		int *row_coords;
-		//int *row_offsets_external;
 		size_t global_nrows, nrows, nnz;
 
 		int *packed_cols;
@@ -75,7 +74,7 @@ namespace miniFE
 		double *send_buffer;
 
 		CSRMatrix()
-			: has_local_indices(false), is_copy(false),
+			: has_local_indices(false),
 			  rows(nullptr), row_offsets(nullptr), row_coords(nullptr),
 			  global_nrows(-1), nrows(-1),
 			  nnz(0), packed_cols(nullptr), packed_coefs(nullptr),
@@ -91,7 +90,6 @@ namespace miniFE
 
 		CSRMatrix(const CSRMatrix &in)
 			: has_local_indices(in.has_local_indices),
-			  is_copy(true),
 			  rows(in.rows),
 			  row_offsets(in.row_offsets),
 			  global_nrows(in.global_nrows),
@@ -116,18 +114,10 @@ namespace miniFE
 			  nelements_to_send(in.nelements_to_send),
 			  elements_to_send(in.elements_to_send),
 			  send_buffer(in.send_buffer)
-
 		{}
 
 		~CSRMatrix()
-		{
-			if (!is_copy) {
-				// generate_matrix_structure
-				assert(nnz > 0);
-				rrd_free(packed_cols, nnz * sizeof(int));
-				rrd_free(packed_coefs, nnz * sizeof(double));
-			}
-		}
+		{}
 
 
 		// Arrays allocations (boxes can go in local memory)
@@ -182,7 +172,7 @@ namespace miniFE
 				local_row = row_iter - rows;
 			}
 
-			assert(local_row < nrows);
+			assert(local_row < (int)nrows);
 
 			const int offset = row_offsets[local_row];
 			row_length = row_offsets[local_row + 1] - offset;
@@ -256,29 +246,16 @@ namespace miniFE
 	                                   singleton *sing,
 	                                   size_t numboxes)
 	{
-		for (int i = 0; i < numboxes; ++i) {
+		for (size_t i = 0; i < numboxes; ++i) {
+			dbvwrite(&mesh_array[i]);
 
-			CSRMatrix *A = &A_array[i];
-			const simple_mesh_description *mesh = &mesh_array[i];
-
-			dbvwrite(mesh);
-
-
-			A->id = i;
-			A->nrows = mesh->extended_box.get_num_ids();
-
-			//num-owned-nodes in each dimension is num-elems+1
-			//only if num-elems > 0 in that dimension *and*
-			//we are at the high end of the global range in that dimension:
-			//A->rows = (int *) rrd_malloc(A->nrows * sizeof(int));
-			//A->row_offsets = (int *) rrd_malloc((A->nrows + 1) * sizeof(int));
-			//A->row_coords = (int *) rrd_malloc(A->nrows * 3 * sizeof(int));
-
+			A_array[i].id = i;
+			A_array[i].nrows = mesh_array[i].extended_box.get_num_ids();
 		}
 
 		sing->allocate_rows(A_array);
 
-		for (int i = 0; i < numboxes; ++i) {
+		for (size_t i = 0; i < numboxes; ++i) {
 
 			CSRMatrix *A = &A_array[i];
 			const simple_mesh_description *mesh = &mesh_array[i];
@@ -305,7 +282,9 @@ namespace miniFE
 
 		#pragma oss taskwait
 
-		for (int i = 0; i < numboxes; ++i) {
+		sing->allocate_packed(A_array);
+
+		for (size_t i = 0; i < numboxes; ++i) {
 			CSRMatrix *A = &A_array[i];
 			const simple_mesh_description *mesh = &mesh_array[i];
 
