@@ -205,32 +205,31 @@ public:
 	void allocate_rows(T *A_array)
 	{
 		allocate_lambda<T, int>(global_nrows, rows,
-		                numboxes, A_array,
+		                A_array,
 		                [](const T &A){return A.nrows;},
 		                [](T &A, int *val){A.rows = val;});
 
 		allocate_lambda<T, int>(global_nrow_offsets, row_offsets,
-		                numboxes, A_array,
+		                A_array,
 		                [](const T &A){return A.nrows + 1;},
 		                [](T &A, int *val){A.row_offsets = val;});
 
 		allocate_lambda<T, int>(global_nrow_coords, row_coords,
-		                numboxes, A_array,
+		                A_array,
 		                [](const T &A){return 3 * A.nrows;},
 		                [](T &A, int *val){A.row_coords = val;});
-
 	}
 
 	template <typename T>
 	void allocate_packed(T *A_array, size_t numboxes)
 	{
 		allocate_lambda<T, int>(global_nnz, packed_cols,
-		                        numboxes, A_array,
+		                        A_array,
 		                        [](const T &A){return A.nnz;},
 		                        [](T &A, int *val){A.packed_cols = val;});
 
 		allocate_lambda<T, double>(global_nnz, packed_coefs,
-		                           numboxes, A_array,
+		                           A_array,
 		                           [](const T &A){return A.nnz;},
 		                           [](T &A, double *val){A.packed_coefs = val;});
 
@@ -238,15 +237,15 @@ public:
 
 private:
 	template <typename T, typename R>
-	void allocate_lambda(int &total_size, R *buffer,
-	                     size_t numboxes, T *A_array,
+	void allocate_lambda(int &total_size, R *&buffer,
+	                     T *A_array,
 	                     std::function<int(const T &)> fun1,
 	                     std::function<void(T &, R*)> fun2)
 	{
 		int *indices = (int *) alloca(numboxes * sizeof(int));
 		int *offsets = (int *) alloca(numboxes * sizeof(int));
 
-		get_offsets(total_size, indices, offsets, numboxes, A_array, fun1);
+		get_offsets<T, R>(total_size, indices, offsets, numboxes, A_array, fun1);
 
 		buffer = (R *) rrd_malloc(total_size * sizeof(R));
 

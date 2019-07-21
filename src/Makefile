@@ -20,8 +20,8 @@ all: CXXFLAGS := -O3 -DNDEBUG -std=c++11
 debug: CFLAGS := -O0 -g -std=c99 -Wall
 debug: CXXFLAGS := -O0 -g -std=c++11 -Wall
 
-verbose: CFLAGS := -O0 -g -std=c99 -Wall -DVERBOSE=2
-verbose: CXXFLAGS := -O0 -g -std=c++11 -Wall -DVERBOSE=2
+verbose: CFLAGS := -O0 -g -std=c99 -Wall -DVERBOSE=1
+verbose: CXXFLAGS := -O0 -g -std=c++11 -Wall -DVERBOSE=1
 
 nanos: CXX := mcxx
 nanos: CFLAGS := -O0 -g -std=c99 -Wall -k --ompss-2 -DNANOS6  -DVERBOSE=1

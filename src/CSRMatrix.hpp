@@ -271,18 +271,12 @@ namespace miniFE
 			//only if num-elems > 0 in that dimension *and*
 			//we are at the high end of the global range in that dimension:
 			//A->rows = (int *) rrd_malloc(A->nrows * sizeof(int));
-			A->row_offsets = (int *) rrd_malloc((A->nrows + 1) * sizeof(int));
-			A->row_coords = (int *) rrd_malloc(A->nrows * 3 * sizeof(int));
+			//A->row_offsets = (int *) rrd_malloc((A->nrows + 1) * sizeof(int));
+			//A->row_coords = (int *) rrd_malloc(A->nrows * 3 * sizeof(int));
 
 		}
 
 		sing->allocate_rows(A_array);
-
-		for (size_t id = 1; id < numboxes; ++id) {
-			printf("A[%zu]->rows = %p %p\n", id, A_array[id].rows, (A_array[id].rows + A_array[id].nrows));
-			printf("A[%zu]->row_offsets = %p %p\n", id, A_array[id].row_offsets, (A_array[id].row_offsets + A_array[id].nrows + 1));
-
-		}
 
 		for (int i = 0; i < numboxes; ++i) {
 

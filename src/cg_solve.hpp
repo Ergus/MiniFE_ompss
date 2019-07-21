@@ -251,7 +251,7 @@ namespace miniFE {
 			// rtrans_global is here because of tw above
 			normr = std::sqrt(rtrans_global);
 			if (k % print_freq == 0 || k == max_iter)
-				printf("\nIteration = %d Residual = %lf", k, normr);
+				printf("Iteration = %d Residual = %g\n", k, normr);
 
 			double p_ap_dot[numboxes];
 			double p_ap_dot_global = 0.0;
@@ -293,7 +293,6 @@ namespace miniFE {
 					//update the timers before jumping out.
 					my_cg_times[TOTAL] = mytimer() - total_time;
 
-					#pragma oss taskwait
 					delete [] r_array;
 					delete [] p_array;
 					delete [] Ap_array;
@@ -305,9 +304,7 @@ namespace miniFE {
 			}
 
 			const double alpha = rtrans_global / p_ap_dot_global;
-			#ifdef MINIFE_DEBUG
-			os << ", rtrans = " << rtrans_global << ", alpha = " << alpha << std::endl;
-			#endif
+			dbprintf(", rtrans = %g , alpha = %g\n", rtrans_global, alpha);
 
 			for (size_t i = 0; i < numboxes; ++i) {
 				waxpby_task(1.0, &x_array[i], alpha, &p_array[i], &x_array[i]);
