@@ -159,11 +159,8 @@ namespace miniFE {
 	                  const double tolerance,
 	                  int &num_iters,
 	                  double &normr,
-	                  timer_type* my_cg_times,
 	                  singleton *sing)
 	{
-
-		timer_type total_time = mytimer();
 
 		Vector *r_array = new Vector[numboxes];
 		Vector *p_array = new Vector[numboxes];
@@ -258,7 +255,10 @@ namespace miniFE {
 			reduce_sum_task(&p_ap_dot_global, p_ap_dot, numboxes);
 			#pragma oss taskwait
 
-			dbvprintf("iter %d, p_ap_dot = %g\n", k, p_ap_dot_global);
+			const double alpha = rtrans_global / p_ap_dot_global;
+
+			dbprintf("iter: %d p_ap_dot: %g rtrans: %g alpha: %g\n",
+			         k, p_ap_dot_global, rtrans_global, alpha);
 
 			if (p_ap_dot_global < brkdown_tol) {
 
@@ -282,8 +282,6 @@ namespace miniFE {
 					         p_ap_dot_global, breakdown_global);
 
 					//update the timers before jumping out.
-					my_cg_times[TOTAL] = mytimer() - total_time;
-
 					delete [] r_array;
 					delete [] p_array;
 					delete [] Ap_array;
@@ -293,9 +291,6 @@ namespace miniFE {
 					brkdown_tol = 0.1 * p_ap_dot_global;
 				}
 			}
-
-			const double alpha = rtrans_global / p_ap_dot_global;
-			dbprintf(", rtrans = %g , alpha = %g\n", rtrans_global, alpha);
 
 			for (size_t i = 0; i < numboxes; ++i) {
 				waxpby_task(1.0, &x_array[i], alpha, &p_array[i], &x_array[i]);
@@ -307,10 +302,6 @@ namespace miniFE {
 			num_iters = k;
 		} // for k
 
-		#pragma oss taskwait
-
-		my_cg_times[TOTAL] = mytimer() - total_time;
-	
 		delete [] r_array;
 		delete [] p_array;
 		delete [] Ap_array;

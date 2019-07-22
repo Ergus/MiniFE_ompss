@@ -35,17 +35,14 @@
 #include <sstream>
 #include <iomanip>
 
+
 #include "box_utils.hpp"
-#include "Vector.hpp"
-
 #include "CSRMatrix.hpp"
-
+#include "Vector.hpp"
 #include "simple_mesh_description.hpp"
-
 #include "SparseMatrix_functions.hpp"
-
-
 #include "verify_solution.hpp"
+#include "ompss_utils.hpp"
 
 #include "singleton.hpp"
 #include "compute_matrix_stats.hpp"
@@ -95,9 +92,15 @@ namespace miniFE
 	                  Box *local_boxes_array, const size_t numboxes,
 	                  Parameters &params, YAML_Doc &ydoc)
 	{
+		assert(numboxes > 0);
+
+		singleton sing(numboxes);
+
 		const int global_nx = global_box[0][1];
 		const int global_ny = global_box[1][1];
 		const int global_nz = global_box[2][1];
+
+		timer_type t_total = 0.0, t0 = mytimer();
 
 		std::cout << "Global Box: " << global_box << std::endl;
 
@@ -116,7 +119,6 @@ namespace miniFE
 
 		timer_type t_start = mytimer();
 
-		// Tasks here (is not really needed, just to paralelize)
 		Box *local_node_box_array = new Box[numboxes];
 		for (size_t i = 0; i < numboxes; ++i) {
 			local_node_box_array[i] = local_boxes_array[i];
@@ -128,72 +130,59 @@ namespace miniFE
 			}
 		}
 
-		timer_type t0 = mytimer();
+
+		timer_type t_mesh_fill = mytimer();
 		simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
+		{
+			for (size_t i = 0; i < numboxes; ++i) {
+				init_mesh_task(&mesh_array[i],
+				               &global_box,
+				               local_boxes_array, \
+				               local_node_box_array,
+				               i,
+				               numboxes);
 
-		for (size_t i = 0; i < numboxes; ++i) {
-			init_mesh_task(&mesh_array[i],
-			               &global_box,
-			               local_boxes_array, \
-			               local_node_box_array,
-			               i,
-			               numboxes);
-
+			}
+			REGISTER_ELAPSED_TIME(t_mesh_fill, t_total);
 		}
-		#pragma oss taskwait
-
-
-		timer_type t_mesh_fill = mytimer() - t0;
-		timer_type t_total = mytimer() - t_start;
-		printf("mesh_fill %g, total_time: %g\n", t_mesh_fill, t_total);
-
-		singleton sing(numboxes);
 
 		//Declare matrix object array
 		CSRMatrix *A_array = new CSRMatrix[numboxes];
 		{
 			std::cout << "generating matrix structure..." << std::endl;
-			timer_type gen_structure = mytimer();
+			timer_type t_gen_structure = mytimer();
 
 			generate_matrix_structure_all(A_array,
 			                              mesh_array,
 			                              &sing,
 			                              numboxes);
 
-			//#pragma oss taskwait
-			REGISTER_ELAPSED_TIME(gen_structure, t_total);
+			REGISTER_ELAPSED_TIME(t_gen_structure, t_total);
 
 			ydoc.add("Matrix structure generation","");
-			ydoc.get("Matrix structure generation")->add("Mat-struc-gen Time", gen_structure);
+			ydoc.get("Matrix structure generation")->add("Mat-struc-gen Time", t_gen_structure);
 		}
-
-		assert(numboxes > 0);
 
 		// Declare vector objects array
 		Vector *b_array = new Vector[numboxes];
 		Vector *x_array = new Vector[numboxes];
 
-		// TODO: Task Here gene
 		{
 			init_vector_all(b_array, A_array, &sing, numboxes);
-
 			init_vector_all(x_array, A_array, &sing, numboxes);
 		}
 
 		//Assemble finite-element sub-matrices and sub-vectors into the global linear system:
 		{
 			std::cout << "assembling FE data..." << std::endl;
-			timer_type fe_assembly = mytimer();
+			timer_type t_fe_assembly = mytimer();
 
-			for (size_t i = 0; i < numboxes; ++i)
-				assemble_FE_data_task(i, &mesh_array[i], &A_array[i], &b_array[i]);
+			assemble_FE_data_task(mesh_array, A_array, b_array, numboxes);
 
-			#pragma oss taskwait
-
-			REGISTER_ELAPSED_TIME(fe_assembly, t_total);
+			REGISTER_ELAPSED_TIME(t_fe_assembly, t_total);
 
 			ydoc.add("FE assembly", "");
-			ydoc.get("FE assembly")->add("FE assembly Time",fe_assembly);
+			ydoc.get("FE assembly")->add("FE assembly Time", t_fe_assembly);
 		}
 
 
@@ -201,7 +190,7 @@ namespace miniFE
 		//(Apply the 0-valued surfaces first, then the 1-valued surface last.)
 		{
 			std::cout << "imposing Dirichlet BC..." << std::endl;
-			timer_type dirbc_time  = mytimer();;
+			timer_type t_dirbc_time  = mytimer();;
 
 			// This dependencies are inout and individual per impose_dirichlet.
 			for (size_t i = 0; i < numboxes; ++i) {
@@ -225,9 +214,7 @@ namespace miniFE
 
 			}
 
-			#pragma oss taskwait
-
-			REGISTER_ELAPSED_TIME(dirbc_time, t_total);
+			REGISTER_ELAPSED_TIME(t_dirbc_time, t_total);
 		}
 
 
@@ -235,17 +222,14 @@ namespace miniFE
 		//Transform global indices to local, set up communication information:
 		{
 			std::cout << "making matrix indices local..." << std::endl;
-			timer_type make_local_time = mytimer();;
+			timer_type t_make_local_time = mytimer();
 
 			// TODO: weak task here
 			make_local_matrix(A_array, &sing, numboxes);
-			REGISTER_ELAPSED_TIME(make_local_time, t_total);
+
+			REGISTER_ELAPSED_TIME(t_make_local_time, t_total);
 		}
 
-		#ifdef MINIFE_DEBUG
-		A.write_matrix("A_local.mtx");
-		b.write_vector("b_local.vec");
-		#endif
 
 		size_t global_nnz;
 		compute_matrix_stats_task(A_array, numboxes, ydoc, &global_nnz);
@@ -276,14 +260,23 @@ namespace miniFE
 
 		num_iters = max_iters;
 		std::string title("Kernel timings");
+
 		#else
 
 		std::cout << "Starting CG solver ... " << std::endl;
 
-		cg_solve_all(A_array, numboxes, b_array, x_array,
-		             max_iters, tol, num_iters, rnorm, cg_times, &sing);
+		{
+			cg_times[TOTAL] = mytimer();
 
-		printf("Final Resid Norm: %g time %g\n", rnorm, cg_times[TOTAL]);
+			cg_solve_all(A_array, numboxes, b_array, x_array,
+			             max_iters, tol, num_iters, rnorm, &sing);
+
+			REGISTER_ELAPSED_TIME(cg_times[TOTAL], t_total);
+
+			printf("Final Resid Norm: %g solver_time %g iterations %d\n",
+			       rnorm, cg_times[TOTAL], num_iters);
+		}
+
 
 		if (params.verify_solution > 0) {
 			#ifndef NDEBUG
@@ -298,18 +291,15 @@ namespace miniFE
 			                                x_array, numboxes, 0.06, verify_whole_domain);
 		}
 
-		#ifdef MINIFE_DEBUG
-		write_vector("x.vec", x);
-		#endif // MINIFE_DEBUG
 		std::string title("CG solve");
 		#endif
 
-		ydoc.get("Global Run Parameters")->add("ScalarType","double");
-		ydoc.get("Global Run Parameters")->add("GlobalOrdinalType","int");
-		ydoc.get("Global Run Parameters")->add("LocalOrdinalType","int");
+		ydoc.get("Global Run Parameters")->add("ScalarType", "double");
+		ydoc.get("Global Run Parameters")->add("GlobalOrdinalType", "int");
+		ydoc.get("Global Run Parameters")->add("LocalOrdinalType", "int");
 		ydoc.add(title,"");
-		ydoc.get(title)->add("Iterations",num_iters);
-		ydoc.get(title)->add("Final Resid Norm",rnorm);
+		ydoc.get(title)->add("Iterations", num_iters);
+		ydoc.get(title)->add("Final Resid Norm", rnorm);
 
 		const int global_nrows = global_nx * global_ny * global_nz;
 
@@ -331,66 +321,26 @@ namespace miniFE
 		waxpy_flops *= num_iters;
 		#endif
 
-		const double total_flops = mv_flops + dot_flops + waxpy_flops;
+		const double total_op_flops = mv_flops + dot_flops + waxpy_flops;
 
-		double mv_mflops = -1;
-		if (cg_times[MATVEC] > 1.e-4)
-			mv_mflops = 1.e-6 * (mv_flops/cg_times[MATVEC]);
+		const double total_mflops = get_mflops(cg_times[TOTAL], total_op_flops);
 
-		double dot_mflops = -1;
-		if (cg_times[DOT] > 1.e-4)
-			dot_mflops = 1.e-6 * (dot_flops/cg_times[DOT]);
-
-		double waxpy_mflops = -1;
-		if (cg_times[WAXPY] > 1.e-4)
-			waxpy_mflops = 1.e-6 *  (waxpy_flops/cg_times[WAXPY]);
-
-		double total_mflops = -1;
-		if (cg_times[TOTAL] > 1.e-4)
-			total_mflops = 1.e-6 * (total_flops/cg_times[TOTAL]);
-
-		ydoc.get(title)->add("WAXPY Time",cg_times[WAXPY]);
-		ydoc.get(title)->add("WAXPY Flops",waxpy_flops);
-		if (waxpy_mflops >= 0)
-			ydoc.get(title)->add("WAXPY Mflops",waxpy_mflops);
-		else
-			ydoc.get(title)->add("WAXPY Mflops","inf");
-
-		ydoc.get(title)->add("DOT Time",cg_times[DOT]);
-		ydoc.get(title)->add("DOT Flops",dot_flops);
-		if (dot_mflops >= 0)
-			ydoc.get(title)->add("DOT Mflops",dot_mflops);
-		else
-			ydoc.get(title)->add("DOT Mflops","inf");
-
-		ydoc.get(title)->add("MATVEC Time",cg_times[MATVEC]);
-		ydoc.get(title)->add("MATVEC Flops",mv_flops);
-		if (mv_mflops >= 0)
-			ydoc.get(title)->add("MATVEC Mflops",mv_mflops);
-		else
-			ydoc.get(title)->add("MATVEC Mflops","inf");
-
-		#ifdef MINIFE_FUSED
-		ydoc.get(title)->add("MATVECDOT Time",cg_times[MATVECDOT]);
-		ydoc.get(title)->add("MATVECDOT Flops",mv_flops);
-		if (mv_mflops >= 0)
-			ydoc.get(title)->add("MATVECDOT Mflops",mv_mflops);
-		else
-			ydoc.get(title)->add("MATVECDOT Mflops","inf");
-		#endif
 
 		#if MINIFE_KERNELS == 0
 		ydoc.get(title)->add("Total","");
 		ydoc.get(title)->get("Total")->add("Total CG Time",cg_times[TOTAL]);
-		ydoc.get(title)->get("Total")->add("Total CG Flops",total_flops);
+		ydoc.get(title)->get("Total")->add("Total CG Flops",total_op_flops);
+
 		if (total_mflops >= 0)
 			ydoc.get(title)->get("Total")->add("Total CG Mflops",total_mflops);
 		else
 			ydoc.get(title)->get("Total")->add("Total CG Mflops","inf");
-		ydoc.get(title)->add("Time per iteration",cg_times[TOTAL]/num_iters);
+
+		ydoc.get(title)->add("Time per iteration", cg_times[TOTAL] / num_iters);
+		printf("Time per iteration %g mflops %g t_total: %g\n",
+		       cg_times[TOTAL] / num_iters, total_mflops, t_total);
 		#endif
 
-		#pragma oss taskwait
 		delete [] mesh_array;
 		delete [] local_node_box_array;
 

@@ -30,22 +30,21 @@
 
 namespace miniFE {
 
-typedef double timer_type;
+	typedef double timer_type;
 
-timer_type mytimer();
+	timer_type mytimer();
 
-enum CG_TIMES {
-  WAXPY = 0,
-  DOT = 1,
-  MATVEC = 2,
-  MATVECDOT = 3,
-  TOTAL = 4,
-  NUM_TIMERS = 5
-};
+	enum CG_TIMES {
+		WAXPY = 0,
+		DOT = 1,
+		MATVEC = 2,
+		MATVECDOT = 3,
+		TOTAL = 4,
+		NUM_TIMERS = 5
+	};
 
-//Use TICK and TOCK to time a code section
-#define TICK() t0 = mytimer();
-#define TOCK(t) t += mytimer() - t0;
+	#define TICK() t0 = mytimer();
+	#define TOCK(t) t += mytimer() - t0;
 
 }//namespace miniFE
 

@@ -363,66 +363,72 @@ namespace miniFE
 		}
 	}
 
-	inline void assemble_FE_data_task(size_t id,
-		const simple_mesh_description *mesh,
-		CSRMatrix *A,
-		Vector *b)
+	inline void assemble_FE_data_task(const simple_mesh_description *mesh_array,
+	                                  CSRMatrix *A_array,
+	                                  Vector *b_array,
+	                                  size_t numboxes)
 	{
+		for (size_t id = 0; id < numboxes; ++id) {
 
-		const std::pair<int,int> *mesh_ompss2_ids_to_rows = mesh->ompss2_ids_to_rows;
-		size_t mesh_i_ids_to_rows_size = mesh->ids_to_rows_size;
-		int *Arows = A->rows;
-		int *Arow_offsets = A->row_offsets;
-		size_t Anrows = A->nrows;
-		int *Apacked_cols = A->packed_cols;
-		double *Apacked_coefs = A->packed_coefs;
-		size_t Annz = A->nnz;
-		double *bcoefs = b->coefs;
-		size_t blocal_size = b->local_size;
+			CSRMatrix *A = &A_array[id];
+			const simple_mesh_description *mesh = &mesh_array[id];
+			Vector *b = &b_array[id];
 
-		#pragma oss task					\
-			in(mesh[0])					\
-			in(mesh_ompss2_ids_to_rows[0; mesh_i_ids_to_rows_size])	\
-			inout(A[0])					\
-			inout(Arows[0; Anrows])				\
-			inout(Arow_offsets[0; Anrows + 1])		\
-			inout(Apacked_cols[0; Annz])			\
-			inout(Apacked_coefs[0; Annz])			\
-			inout(b[0])					\
-			inout(bcoefs[0; blocal_size])
-		{
-			dbvwrite(mesh);
-			dbvwrite(A);
-			dbvwrite(b);
+			const std::pair<int,int> *mesh_ompss2_ids_to_rows = mesh->ompss2_ids_to_rows;
+			size_t mesh_i_ids_to_rows_size = mesh->ids_to_rows_size;
+			int *Arows = A->rows;
+			int *Arow_offsets = A->row_offsets;
+			size_t Anrows = A->nrows;
+			int *Apacked_cols = A->packed_cols;
+			double *Apacked_coefs = A->packed_coefs;
+			size_t Annz = A->nnz;
+			double *bcoefs = b->coefs;
+			size_t blocal_size = b->local_size;
 
-			Box local_elem_box(mesh->local_box);
+			#pragma oss task				\
+				in(mesh[0])				\
+				in(mesh_ompss2_ids_to_rows[0; mesh_i_ids_to_rows_size])	\
+				inout(A[0])				\
+				inout(Arows[0; Anrows])			\
+				inout(Arow_offsets[0; Anrows + 1])	\
+				inout(Apacked_cols[0; Annz])		\
+				inout(Apacked_coefs[0; Annz])		\
+				inout(b[0])				\
+				inout(bcoefs[0; blocal_size])
+			{
+				dbvwrite(mesh);
+				dbvwrite(A);
+				dbvwrite(b);
 
-			if (local_elem_box.get_num_ids() < 1)
-				return;
-			//
-			//We want the element-loop to loop over our (processor-local) domain plus a
-			//ghost layer, so we can assemble the complete linear-system without doing
-			//any communication.
-			//
-			const int ghost = 1;
-			if (local_elem_box[0][0] > 0)
-				local_elem_box[0][0] -= ghost;
-			if (local_elem_box[1][0] > 0)
-				local_elem_box[1][0] -= ghost;
-			if (local_elem_box[2][0] > 0)
-				local_elem_box[2][0] -= ghost;
-			if (local_elem_box[0][1] < mesh->global_box[0][1])
-				local_elem_box[0][1] += ghost;
-			if (local_elem_box[1][1] < mesh->global_box[1][1])
-				local_elem_box[1][1] += ghost;
-			if (local_elem_box[2][1] < mesh->global_box[2][1])
-				local_elem_box[2][1] += ghost;
+				Box local_elem_box(mesh->local_box);
 
-			perform_element_loop(*mesh, local_elem_box, *A, *b);
+				if (local_elem_box.get_num_ids() < 1)
+					return;
+				//
+				//We want the element-loop to loop over our (processor-local) domain plus a
+				//ghost layer, so we can assemble the complete linear-system without doing
+				//any communication.
+				//
+				const int ghost = 1;
+				if (local_elem_box[0][0] > 0)
+					local_elem_box[0][0] -= ghost;
+				if (local_elem_box[1][0] > 0)
+					local_elem_box[1][0] -= ghost;
+				if (local_elem_box[2][0] > 0)
+					local_elem_box[2][0] -= ghost;
+				if (local_elem_box[0][1] < mesh->global_box[0][1])
+					local_elem_box[0][1] += ghost;
+				if (local_elem_box[1][1] < mesh->global_box[1][1])
+					local_elem_box[1][1] += ghost;
+				if (local_elem_box[2][1] < mesh->global_box[2][1])
+					local_elem_box[2][1] += ghost;
 
-			dbvwrite(mesh);
-			dbvwrite(A);
-			dbvwrite(b);
+				perform_element_loop(*mesh, local_elem_box, *A, *b);
+
+				dbvwrite(mesh);
+				dbvwrite(A);
+				dbvwrite(b);
+			}
 		}
 	}
 

@@ -28,6 +28,9 @@
 #include <fstream>      // std::ofstream
 #include <functional>
 
+#include "mytimer.hpp"
+
+
 // nanos conditional macros here
 
 #ifdef NANOS6
@@ -48,7 +51,6 @@
 
 
 // General use macros Here
-
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
 
@@ -57,10 +59,11 @@ inline std::string prefix(std::string caller, std::string file, int line, std::s
 	return ret;
 }
 
-#define REGISTER_ELAPSED_TIME(time_inc, time_total)			\
-	{								\
-		time_inc = mytimer() - time_inc;			\
-		time_total += time_inc;					\
+#define REGISTER_ELAPSED_TIME(TIME_INC, TIME_TOTAL) {			\
+		_Pragma ("oss taskwait")				\
+		TIME_INC = mytimer() - TIME_INC;			\
+		TIME_TOTAL += TIME_INC;					\
+		printf("\t%s: %g, total_time: %g\n", #TIME_INC, TIME_INC, TIME_TOTAL); \
 	}
 
 // Debug conditional macros here.
@@ -103,6 +106,13 @@ inline std::string prefix(std::string caller, std::string file, int line, std::s
 #endif
 
 // General Purpose functions
+
+inline double get_mflops(miniFE::timer_type t, double flops)
+{
+	return (t > 1.e-4 ? 1.e-6 * flops / t : -1 );
+}
+
+
 
 template <typename T>
 std::ostream &array_to_stream(const T *in, size_t size,

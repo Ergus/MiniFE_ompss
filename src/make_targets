@@ -32,6 +32,7 @@ all: $(FILE)
 debug: $(FILE)
 verbose: $(FILE)
 nanos: $(FILE)
+nanos2: $(FILE)
 
 miniFE.x: $(OBJS) $(HEADERS)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(MINIFEFLAGS) $(OBJS) -o miniFE.x $(LDFLAGS) $(LIBS)

@@ -27,6 +27,10 @@ nanos: CXX := mcxx
 nanos: CFLAGS := -O0 -g -std=c99 -Wall -k --ompss-2 -DNANOS6  -DVERBOSE=1
 nanos: CXXFLAGS := -O0 -g -std=c++11 -Wall -k --ompss-2 -DNANOS6  -DVERBOSE=1
 
+nanos2: CXX := mcxx
+nanos2: CFLAGS := -O3 -std=c99 --ompss-2 -DNANOS6 -DNDEBUG
+nanos2: CXXFLAGS := -O3 -std=c++11 --ompss-2 -DNANOS6 -DNDEBUG
+
 include make_targets
 
 # -DNANOS6 : for nanos6

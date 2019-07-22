@@ -146,6 +146,8 @@ public:
 
 	bool allocate_recv(int _global_nrecv_neighbors, int _global_nexternals)
 	{
+		dbvprintf("Allocating %d elements for external_index\n", _global_nexternals);
+
 		assert (!(recv_neighbors || recv_ptr || recv_length || external_index));
 
 		global_nrecv_neighbors = _global_nrecv_neighbors;
@@ -163,6 +165,8 @@ public:
 
 	bool allocate_send(int _global_nsend_neighbors, int _global_nelements_to_send)
 	{
+		dbvprintf("Allocating %d elements to elements_to_send\n", _global_nelements_to_send);
+
 		assert(!(send_neighbors || send_length || elements_to_send || send_buffer));
 
 		global_nsend_neighbors = _global_nsend_neighbors;

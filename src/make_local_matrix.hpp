@@ -477,7 +477,7 @@ namespace miniFE {
 
 			// this allocates the arrays internally with dmalloc
 			assert(global_nrecv_neighbors > 0);
-			std::cout << "allocating " << nexternals << " elements for external_index" << std::endl;
+
 			sing->allocate_recv(global_nrecv_neighbors, nexternals);
 
 			// The next extra copy enables a latter optimization, it
