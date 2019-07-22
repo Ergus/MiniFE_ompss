@@ -170,23 +170,14 @@ namespace miniFE {
 		Vector *Ap_array = new Vector[numboxes];
 
 		{
-			int start[numboxes];
-			int length[numboxes];
+			init_vector_all(r_array, A_array, sing, numboxes);
 
-			int p_start[numboxes];
-			int p_length[numboxes];
+			init_vector_all(Ap_array, A_array, sing, numboxes);
 
-			for (size_t i = 0; i < numboxes; ++i) {
-				start[i] = A_array[i].first_row;
-				length[i] = A_array[i].nrows;
+			for (size_t i = 0; i < numboxes; ++i)
+				p_array[i].init(i, 0, A_array[i].num_cols);
 
-				p_start[i] = 0;
-				p_length[i] = A_array[i].num_cols;
-			}
-
-			init_vector_all(r_array, sing, numboxes, start, length);
-			init_vector_all(Ap_array, sing, numboxes, start, length);
-			init_vector_all(p_array, sing, numboxes, p_start, p_length);
+			sing->allocate_vectors(p_array);
 		}
 
 		normr = 0;
@@ -319,7 +310,7 @@ namespace miniFE {
 		#pragma oss taskwait
 
 		my_cg_times[TOTAL] = mytimer() - total_time;
-
+	
 		delete [] r_array;
 		delete [] p_array;
 		delete [] Ap_array;

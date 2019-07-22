@@ -177,15 +177,20 @@ public:
 		return (send_neighbors && send_length && elements_to_send && send_buffer);
 	}
 
-	double *allocate_vectors(size_t total_size)
+	template <typename T>
+	void allocate_vectors(T *b_array)
 	{
-		if (nvectors == MAXVECTORS)
-			return nullptr;
+		if (nvectors == MAXVECTORS) {
+			perror("MAXVECTORS already allocated\n");
+			abort();
+		}
 
-		vector_global_size[nvectors] = total_size;
-		vector_coefs[nvectors] = (double *) rrd_malloc(total_size * sizeof(double));
-
-		return vector_coefs[nvectors++];
+		allocate_lambda<T, double>(vector_global_size[nvectors],
+		                           vector_coefs[nvectors],
+		                           b_array,
+		                           [](const T &b){return b.local_size;},
+		                           [](T &b, double *val){b.coefs = val;});
+		nvectors++;
 	}
 
 	void* operator new(size_t sz)

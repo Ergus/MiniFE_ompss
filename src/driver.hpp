@@ -175,16 +175,9 @@ namespace miniFE
 
 		// TODO: Task Here gene
 		{
-			int Vstart[numboxes];
-			int Vlength[numboxes];
+			init_vector_all(b_array, A_array, &sing, numboxes);
 
-			for (size_t i = 0; i < numboxes; ++i) {
-				Vstart[i] = A_array[i].first_row;
-				Vlength[i] = A_array[i].nrows;
-			}
-
-			init_vector_all(b_array, &sing, numboxes, Vstart, Vlength);
-			init_vector_all(x_array, &sing, numboxes, Vstart, Vlength);
+			init_vector_all(x_array, A_array, &sing, numboxes);
 		}
 
 		//Assemble finite-element sub-matrices and sub-vectors into the global linear system:
@@ -290,7 +283,7 @@ namespace miniFE
 		cg_solve_all(A_array, numboxes, b_array, x_array,
 		             max_iters, tol, num_iters, rnorm, cg_times, &sing);
 
-		std::cout << "Final Resid Norm: " << rnorm << std::endl;
+		printf("Final Resid Norm: %g time %g\n", rnorm, cg_times[TOTAL]);
 
 		if (params.verify_solution > 0) {
 			#ifndef NDEBUG

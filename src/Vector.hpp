@@ -68,18 +68,11 @@ namespace miniFE
 			return rrl_free(ptr, sz);
 		}
 
-		void init(size_t _id, int startIdx, size_t local_sz, double *ptr)
+		void init(size_t _id, int startIdx, size_t local_sz)
 		{
 			startIndex = startIdx;
 			id = _id;
 			local_size = local_sz;
-			coefs = ptr;
-
-			#pragma oss task out(ptr[0; local_sz])
-			{
-				for (size_t i = 0; i < 0; ++i)
-					ptr[i] = 0.0;
-			}
 		}
 
 		void sum_into_vector(size_t num_indices,
@@ -105,27 +98,16 @@ namespace miniFE
 
 	};
 
-
+	template <typename T>
 	void init_vector_all(Vector *b_array,
+	                     T *A_array,
 	                     singleton *sing,
-	                     size_t numboxes,
-	                     const int *start, const int *length)
+	                     size_t numboxes)
 	{
+		for (size_t i = 0; i < numboxes; ++i)
+			b_array[i].init(i, A_array[i].first_row, A_array[i].nrows);
 
-		int elements = 0;
-		int *Voffsets = (int *) alloca(numboxes * sizeof(int));
-
-		for (size_t i = 0; i < numboxes; ++i) {
-			Voffsets[i] = elements;
-			elements += length[i];
-		}
-
-		double * tmp = sing->allocate_vectors(elements);
-
-		assert(tmp);
-
-		for (size_t id = 0; id < numboxes; ++id)
-			b_array[id].init(id, start[id], length[id], &(tmp[Voffsets[id]]));
+		sing->allocate_vectors(b_array);
 	}
 
 
