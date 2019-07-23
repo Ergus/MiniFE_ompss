@@ -301,8 +301,26 @@ namespace miniFE
 		}
 	}
 
-	void matvec_task(CSRMatrix *A, Vector *x, Vector *y,
-	                 size_t id = 0, bool print  = false)
+	void matvec(CSRMatrix *A, Vector *x, Vector *y, size_t id = 0)
+	{
+
+		const double beta = 0.0;  // I don't really understand what is this for
+
+		for (size_t row = 0; row < A->nrows; ++row) {
+			double sum = beta * y->coefs[row];
+
+			for(int i = A->row_offsets[row]; i < A->row_offsets[row + 1]; ++i) {
+				const int col = A->packed_cols[i];
+				assert((size_t)i < A->nnz);
+				sum += A->packed_coefs[i] * x->coefs[col];
+			}
+
+			//std::cout << "row[" << row << "] = " << sum << std::endl;
+			y->coefs[row] = sum;
+		}
+	}
+
+	void matvec_task(CSRMatrix *A, Vector *x, Vector *y)
 	{
 		int *Arow_offsets = A->row_offsets;
 		size_t Anrows = A->nrows;
@@ -327,31 +345,43 @@ namespace miniFE
 			in(y[0])				\
 			out(ycoefs[0; ylocal_size])
 		{
-			if (print) {
-				std::string filename = "VERB_matvec_" + std::to_string(id) + ".verb";
-				std::ofstream stream(filename);
+			matvec(A, x, y);
 
-				A->write(stream);
-				x->write(stream);
-				stream.close();
-			}
-
-			const double beta = 0.0;  // I don't really understand what is this for
-
-			for (size_t row = 0; row < Anrows; ++row) {
-				double sum = beta * ycoefs[row];
-
-				for(int i = Arow_offsets[row]; i < Arow_offsets[row + 1]; ++i) {
-					const int col = Apacked_cols[i];
-					assert((size_t)i < Annz);
-					sum += Apacked_coefs[i] * xcoefs[col];
-				}
-
-				//std::cout << "row[" << row << "] = " << sum << std::endl;
-				ycoefs[row] = sum;
-			}
 		}
 	}
+
+	void matvec_dot_task(CSRMatrix *A, Vector *x, Vector *y, double *x_y_dot)
+	{
+		int *Arow_offsets = A->row_offsets;
+		size_t Anrows = A->nrows;
+		int *Apacked_cols = A->packed_cols;
+		double *Apacked_coefs = A->packed_coefs;
+		double *xcoefs = x->coefs;
+		size_t xlocal_size = x->local_size;
+		double *ycoefs = y->coefs;
+		size_t ylocal_size = y->local_size;
+		size_t Annz = A->nnz;
+
+		assert(xlocal_size >= Anrows);
+		assert(ylocal_size >= Anrows);
+
+		#pragma oss task				\
+			in(A[0])				\
+			in(Arow_offsets[0; Anrows + 1])		\
+			in(Apacked_cols[0; Annz])		\
+			in(Apacked_coefs[0; Annz])		\
+			in(x[0])				\
+			in(xcoefs[0; xlocal_size])		\
+			in(y[0])				\
+			out(ycoefs[0; ylocal_size])		\
+			out(x_y_dot[0])
+		{
+			matvec(A, x, y);
+			dot(y, x, x_y_dot);
+
+		}
+	}
+
 
 	inline void assemble_FE_data_task(const simple_mesh_description *mesh_array,
 	                                  CSRMatrix *A_array,

@@ -111,6 +111,21 @@ namespace miniFE
 	}
 
 
+	void dot(const Vector *x, const Vector *y, double *ret)
+	{
+
+		const size_t n = x->local_size;
+
+		assert(y->local_size >= n);
+
+		double result = 0.0;
+		for (size_t i = 0; i < n; ++i)
+			result += x->coefs[i] * y->coefs[i];
+
+		*ret = result;
+		dbv2printf("dot_task: %g\n", ret[0]);
+	}
+
 	void dot_task(const Vector *x, const Vector *y, double *ret)
 	{
 
@@ -124,16 +139,7 @@ namespace miniFE
 			in(ycoefs[0; ylocal_size])			\
 			out(ret[0])
 		{
-			const size_t n = xlocal_size;
-
-			assert(ylocal_size >= n);
-
-			double result = 0.0;
-			for (size_t i = 0; i < n; ++i)
-				result += xcoefs[i] * ycoefs[i];
-
-			ret[0] = result;
-			dbv2printf("dot_task: %lg\n", ret[0]);
+			dot(x, y, ret);
 		}
 	}
 

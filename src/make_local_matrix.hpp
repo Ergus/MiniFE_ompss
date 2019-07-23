@@ -617,8 +617,6 @@ namespace miniFE {
 
 		rrl_free(send_neighbors_global, numboxes * numboxes * sizeof(int));
 		rrl_free(send_length_global, numboxes * numboxes * sizeof(int));
-
-
 	}
 
 }//namespace miniFE

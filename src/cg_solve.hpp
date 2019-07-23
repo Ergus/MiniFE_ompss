@@ -247,11 +247,8 @@ namespace miniFE {
 
 			// This creates tasks internally
 			exchange_externals_all(A_array, p_array, numboxes, sing);
-			for (size_t i = 0; i < numboxes; ++i) {
-				matvec_task(&A_array[i], &p_array[i], &Ap_array[i], i, k == 1);
-
-				dot_task(&Ap_array[i], &p_array[i], &p_ap_dot[i]);
-			}
+			for (size_t i = 0; i < numboxes; ++i)
+				matvec_dot_task(&A_array[i], &p_array[i], &Ap_array[i], &p_ap_dot[i]);
 
 			reduce_sum_task(&p_ap_dot_global, p_ap_dot, numboxes);
 			#pragma oss taskwait
