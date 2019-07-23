@@ -133,23 +133,10 @@ namespace miniFE {
 		}
 	}
 
-	int breakdown(double inner, Vector *v, Vector *w)
+	inline int breakdown(double inner, double vnorm2, double wnorm2)
 	{
-		//This is code that was copied from Aztec, and originally written
-		//by my hero, Ray Tuminaro.
-		//
-		//Assuming that inner = <v,w> (inner product of v and w),
-		//v and w are considered orthogonal if
-		//  |inner| < 100 * ||v||_2 * ||w||_2 * epsilon
-
-		double vnorm = 0, wnorm = 0;
-
-		dot2_task(v, &vnorm);
-		dot2_task(w, &wnorm);
-		#pragma oss taskwait
-
-		vnorm = std::sqrt(vnorm);
-		wnorm = std::sqrt(wnorm);
+		const double vnorm = std::sqrt(vnorm);
+		const double wnorm = std::sqrt(wnorm);
 
 		return std::abs(inner) <= 100 * vnorm * wnorm * std::numeric_limits<double>::epsilon();
 	}
@@ -182,6 +169,7 @@ namespace miniFE {
 		double rtrans[numboxes];
 		double oldrtrans;
 		double rtrans_global = 0.0;
+		double beta = 0;
 
 		int print_freq = max_iter / 10;
 		if (print_freq > 50)
@@ -201,9 +189,7 @@ namespace miniFE {
 		for (size_t i = 0; i < numboxes; ++i) {
 			matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
 
-			waxpby_task(1.0, &b_array[i], -1.0, &Ap_array[i], &r_array[i]);
-
-			dot2_task(&r_array[i], &rtrans[i]);
+			waxpby_dot_task(1.0, &b_array[i], -1.0, &Ap_array[i], &r_array[i], &rtrans[i]);
 		}
 
 		reduce_sum_task(&rtrans_global, rtrans, numboxes);
@@ -218,37 +204,24 @@ namespace miniFE {
 
 		for (int k = 1; k <= max_iter && normr > tolerance; ++k) {
 
-			if (k == 1) {
-				for (size_t i = 0; i < numboxes; ++i)
-					waxpby_task(1.0, &r_array[i], 0.0, &r_array[i], &p_array[i]);
-			} else {
+			for (size_t i = 0; i < numboxes; ++i)
+				waxpby_task(1.0, &r_array[i], beta, &p_array[i], &p_array[i]);
 
-				oldrtrans = rtrans_global;
-				for (size_t i = 0; i < numboxes; ++i)
-					dot2_task(&r_array[i], &rtrans[i]);
-
-				reduce_sum_task(&rtrans_global, rtrans, numboxes);
-				#pragma oss taskwait
-
-				const double beta = rtrans_global / oldrtrans;
-
-				for (size_t i = 0; i < numboxes; ++i) {
-					waxpby_task(1.0, &r_array[i], beta, &p_array[i], &p_array[i]);
-				}
-			}
 
 			// rtrans_global is here because of tw above
 			normr = std::sqrt(rtrans_global);
 			if (k % print_freq == 0 || k == max_iter)
 				printf("Iteration = %d Residual = %g\n", k, normr);
 
-			double p_ap_dot[numboxes];
-			double p_ap_dot_global = 0.0;
+			double p_ap_dot[numboxes], p_ap_dot_global = 0.0;
+			double Ap2[numboxes];
+			double p2[numboxes];
 
 			// This creates tasks internally
 			exchange_externals_all(A_array, p_array, numboxes, sing);
 			for (size_t i = 0; i < numboxes; ++i)
-				matvec_dot_task(&A_array[i], &p_array[i], &Ap_array[i], &p_ap_dot[i]);
+				matvec_dot_task(&A_array[i], &p_array[i], &Ap_array[i],
+				                &p_ap_dot[i], &Ap2[i], &p2[i]);
 
 			reduce_sum_task(&p_ap_dot_global, p_ap_dot, numboxes);
 			#pragma oss taskwait
@@ -260,17 +233,9 @@ namespace miniFE {
 
 			if (p_ap_dot_global < brkdown_tol) {
 
-				int breakdown_array[numboxes];
-				int breakdown_global;
-
-				for (size_t i = 0; i < numboxes; ++i) {
-					breakdown_array[i] =
-						breakdown(p_ap_dot_global, &Ap_array[i], &p_array[i]);
-				}
-
-
-				reduce_sum_task(&breakdown_global, breakdown_array, numboxes);
-				#pragma oss taskwait
+				int breakdown_global = 0;
+				for (size_t i = 0; i < numboxes; ++i)
+					breakdown_global += breakdown(p_ap_dot_global, Ap2[i], p2[i]);
 
 				if (p_ap_dot_global < 0 || breakdown_global) {
 
@@ -290,11 +255,17 @@ namespace miniFE {
 				}
 			}
 
+			oldrtrans = rtrans_global;
 			for (size_t i = 0; i < numboxes; ++i) {
 				waxpby_task(1.0, &x_array[i], alpha, &p_array[i], &x_array[i]);
-				waxpby_task(1.0, &r_array[i], -alpha, &Ap_array[i], &r_array[i]);
-
+				waxpby_dot_task(1.0, &r_array[i], -alpha, &Ap_array[i], &r_array[i],
+				            &rtrans[i]);
 			}
+
+			reduce_sum_task(&rtrans_global, rtrans, numboxes);
+			#pragma oss taskwait
+
+			beta = rtrans_global / oldrtrans;
 
 			num_iters = k;
 		} // for k

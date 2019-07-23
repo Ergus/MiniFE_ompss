@@ -345,12 +345,25 @@ namespace miniFE
 			in(y[0])				\
 			out(ycoefs[0; ylocal_size])
 		{
-			matvec(A, x, y);
+			const double beta = 0.0;  // I don't really understand what is this for
 
+			for (size_t row = 0; row < Anrows; ++row) {
+				double sum = beta * ycoefs[row];
+
+				for(int i = Arow_offsets[row]; i < Arow_offsets[row + 1]; ++i) {
+					const int col = Apacked_cols[i];
+					assert((size_t)i < Annz);
+					sum += Apacked_coefs[i] * xcoefs[col];
+				}
+
+				//std::cout << "row[" << row << "] = " << sum << std::endl;
+				ycoefs[row] = sum;
+			}
 		}
 	}
 
-	void matvec_dot_task(CSRMatrix *A, Vector *x, Vector *y, double *x_y_dot)
+	void matvec_dot_task(CSRMatrix *A, Vector *x, Vector *y,
+	                     double *x_y_dot, double *Ap2, double *p2)
 	{
 		int *Arow_offsets = A->row_offsets;
 		size_t Anrows = A->nrows;
@@ -374,11 +387,27 @@ namespace miniFE
 			in(xcoefs[0; xlocal_size])		\
 			in(y[0])				\
 			out(ycoefs[0; ylocal_size])		\
-			out(x_y_dot[0])
+			out(x_y_dot[0])				\
+			out(Ap2[0])				\
+			out(p2[0])
 		{
-			matvec(A, x, y);
-			dot(y, x, x_y_dot);
+			*Ap2 = 0.0;
 
+			for (size_t row = 0; row < Anrows; ++row) {
+				double sum = 0.0;
+
+				for(int i = Arow_offsets[row]; i < Arow_offsets[row + 1]; ++i) {
+					const int col = Apacked_cols[i];
+					assert((size_t)i < Annz);
+					sum += Apacked_coefs[i] * xcoefs[col];
+				}
+
+				//std::cout << "row[" << row << "] = " << sum << std::endl;
+				ycoefs[row] = sum;
+				*Ap2 += (sum * sum);
+			}
+			dot(y, x, x_y_dot);
+			dot(x, x, p2);
 		}
 	}
 
