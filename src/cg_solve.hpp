@@ -81,7 +81,8 @@ namespace miniFE {
 			#ifndef NDEBUG
 			if (!Arecv_ptr[i]) {
 				dbprintf("Error in vector A.recv_ptr[%d]\n", i);
-				dbvprint_vector("Arecv_ptr", Anrecv_neighbors, Arecv_ptr);
+				dbvprint_vector("Arecv_ptr", Anrecv_neighbors, Arecv_ptr, std::cerr);
+				std::cerr<<std::endl;
 			}
 			assert(Arecv_ptr[i] != NULL);
 			#endif
@@ -99,6 +100,7 @@ namespace miniFE {
 	void exchange_externals_all(CSRMatrix *A_array, Vector *x_array, size_t numboxes,
 	                            const singleton *sing)
 	{
+		dbvprintf("Executing exchange externals\n");
 
 		if (numboxes < 2)
 			return;
@@ -168,7 +170,6 @@ namespace miniFE {
 
 		{
 			init_vector_all(r_array, A_array, sing, numboxes);
-
 			init_vector_all(Ap_array, A_array, sing, numboxes);
 
 			for (size_t i = 0; i < numboxes; ++i)
@@ -294,7 +295,6 @@ namespace miniFE {
 
 			for (size_t i = 0; i < numboxes; ++i) {
 				waxpby_task(1.0, &x_array[i], alpha, &p_array[i], &x_array[i]);
-
 				waxpby_task(1.0, &r_array[i], -alpha, &Ap_array[i], &r_array[i]);
 
 			}
