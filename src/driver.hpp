@@ -337,7 +337,7 @@ namespace miniFE
 			ydoc.get(title)->get("Total")->add("Total CG Mflops","inf");
 
 		ydoc.get(title)->add("Time per iteration", cg_times[TOTAL] / num_iters);
-		printf("Time per iteration %g mflops %g t_total: %g\n",
+		printf("Time per iteration: %g mflops: %g t_total: %g\n",
 		       cg_times[TOTAL] / num_iters, total_mflops, t_total);
 		#endif
 
