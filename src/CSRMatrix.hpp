@@ -246,11 +246,17 @@ namespace miniFE
 	                                   singleton *sing,
 	                                   size_t numboxes)
 	{
+		const int global_nrows =
+			(mesh_array[0].global_box[0][1] + 1) *
+			(mesh_array[0].global_box[1][1] + 1) *
+			(mesh_array[0].global_box[2][1] + 1);
+
 		for (size_t i = 0; i < numboxes; ++i) {
 			dbvwrite(&mesh_array[i]);
 
 			A_array[i].id = i;
 			A_array[i].nrows = mesh_array[i].extended_box.get_num_ids();
+			A_array[i].global_nrows = global_nrows;
 		}
 
 		sing->allocate_rows(A_array);
@@ -259,17 +265,11 @@ namespace miniFE
 
 			CSRMatrix *A = &A_array[i];
 			const simple_mesh_description *mesh = &mesh_array[i];
-			int global_nodes[3] = {
-				mesh->global_box[0][1] + 1,
-				mesh->global_box[1][1] + 1,
-				mesh->global_box[2][1] + 1 };
 
-			A->global_nrows = global_nodes[0] * global_nodes[1] * global_nodes[2];
 
 			init_offsets_task(A->row_coords,
 			                  A->rows,
 			                  A->row_offsets,
-			                  global_nodes,
 			                  mesh,
 			                  mesh->ompss2_ids_to_rows,
 			                  mesh->ids_to_rows_size,
@@ -288,16 +288,7 @@ namespace miniFE
 			CSRMatrix *A = &A_array[i];
 			const simple_mesh_description *mesh = &mesh_array[i];
 
-			A->packed_cols = (int *) rrd_malloc(A->nnz * sizeof(int));
-			A->packed_coefs = (double *) rrd_malloc(A->nnz * sizeof(double));
-
-			int global_nodes[3] = {
-				mesh->global_box[0][1] + 1,
-				mesh->global_box[1][1] + 1,
-				mesh->global_box[2][1] + 1 };
-
 			init_matrix_task(A->row_coords,
-			                 global_nodes,
 			                 A->global_nrows,
 			                 mesh,
 			                 mesh->ompss2_ids_to_rows,
@@ -308,7 +299,6 @@ namespace miniFE
 			                 A->nrows,
 			                 A->nnz);
 		}
-		#pragma oss taskwait
 	}
 
 	void matvec_task(CSRMatrix *A, Vector *x, Vector *y,

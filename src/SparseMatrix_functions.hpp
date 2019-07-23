@@ -289,14 +289,12 @@ namespace miniFE
 	// TODO: make all this weak when things works
 	#pragma oss task						\
 		in(row_coords[0; 3 * nrows])				\
-		in(global_nodes[0; 3])					\
-		in(*mesh)						\
+		in(mesh[0])						\
 		in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])	\
 		in(row_offsets[0; nrows + 1])				\
 		out(packed_cols[0; nnz])				\
 		out(packed_coefs[0; nnz])
 	void init_matrix_task(const int *row_coords,
-	                      const int *global_nodes,
 	                      int global_nrows,
 	                      const simple_mesh_description *mesh,
 	                      const std::pair<int,int> *mesh_ompss2_ids_to_rows,
@@ -306,6 +304,11 @@ namespace miniFE
 	                      double *packed_coefs,
 	                      int nrows, int nnz)
 	{
+		int global_nodes[3] = {
+			mesh->global_box[0][1] + 1,
+			mesh->global_box[1][1] + 1,
+			mesh->global_box[2][1] + 1 };
+
 		for(int i = 0; i < nrows; ++i) {
 
 			init_row(&row_coords[3 * i],
@@ -322,7 +325,6 @@ namespace miniFE
 		out(row_coords[0; nrows * 3])				\
 		out(rows[0; nrows])					\
 		out(row_offsets[0; nrows + 1])				\
-		in(global_nodes[0; 3])					\
 		in(mesh[0])						\
 		in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])	\
 		out(nnz[0])						\
@@ -331,7 +333,6 @@ namespace miniFE
 	void init_offsets_task(int *row_coords,
 		int *rows,
 		int *row_offsets,
-		int *global_nodes,
 		const simple_mesh_description *mesh,
 		const std::pair<int,int> *mesh_ompss2_ids_to_rows,
 		size_t mesh_ids_to_rows_size,
@@ -344,6 +345,12 @@ namespace miniFE
 		const Box &box = mesh->extended_box;
 		size_t tnnz = 0;
 		size_t roffset = 0;
+
+		int global_nodes[3] = {
+			mesh->global_box[0][1] + 1,
+			mesh->global_box[1][1] + 1,
+			mesh->global_box[2][1] + 1 };
+
 
 		for(int iz = box[2][0]; iz < box[2][1]; ++iz) {
 			for(int iy = box[1][0]; iy < box[1][1]; ++iy) {
