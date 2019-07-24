@@ -169,8 +169,9 @@ namespace miniFE
 			wcoefs[i] = alpha * xcoefs[i] + beta * ycoefs[i];
 	}
 
+
 	inline void waxpby_task(double alpha, const Vector *x,
-	                        double beta,  const Vector *y,
+	                        double *beta,  const Vector *y,
 	                        Vector *w)
 	{
 		double *xcoefs = x->coefs;
@@ -182,33 +183,7 @@ namespace miniFE
 
 		#pragma oss task					\
 			in(xcoefs[0; xlocal_size])			\
-			in(ycoefs[0; ylocal_size])			\
-			out(wcoefs[0; wlocal_size])
-		{
-			assert(xlocal_size <= ylocal_size);
-			assert(xlocal_size <= wlocal_size);
-			const int n = xlocal_size;
-
-			waxpby(alpha, xcoefs, beta, ycoefs, wcoefs, n);
-		}
-
-	}
-
-
-	inline void waxpby_task(double alpha, const Vector *x,
-		double *beta,  const Vector *y,
-		Vector *w)
-	{
-		double *xcoefs = x->coefs;
-		size_t xlocal_size = x->local_size;
-		double *ycoefs = y->coefs;
-		size_t ylocal_size = y->local_size;
-		double *wcoefs = w->coefs;
-		size_t wlocal_size = w->local_size;
-
-		#pragma oss task					\
 			in(beta[0])					\
-			in(xcoefs[0; xlocal_size])			\
 			in(ycoefs[0; ylocal_size])			\
 			out(wcoefs[0; wlocal_size])
 		{
@@ -217,39 +192,6 @@ namespace miniFE
 			const int n = xlocal_size;
 
 			waxpby(alpha, xcoefs, beta[0], ycoefs, wcoefs, n);
-		}
-
-	}
-
-	inline void waxpby_dot_task(double alpha, const Vector *x,
-	                            double beta,  const Vector *y,
-	                            Vector *w, double *w2)
-	{
-
-		double *xcoefs = x->coefs;
-		size_t xlocal_size = x->local_size;
-		double *ycoefs = y->coefs;
-		size_t ylocal_size = y->local_size;
-		double *wcoefs = w->coefs;
-		size_t wlocal_size = w->local_size;
-
-
-		#pragma oss task					\
-			in(xcoefs[0; xlocal_size])			\
-			in(ycoefs[0; ylocal_size])			\
-			out(wcoefs[0; wlocal_size])			\
-			out(w2[0])
-		{
-			*w2 = 0.0;
-			assert(xlocal_size <= ylocal_size);
-			assert(xlocal_size <= wlocal_size);
-			const int n = xlocal_size;
-
-			for (int i = 0; i < n; ++i) {
-				const double tmp = alpha * xcoefs[i] + beta * ycoefs[i];
-				wcoefs[i] = tmp;
-				*w2 += (tmp * tmp);
-			}
 		}
 
 	}

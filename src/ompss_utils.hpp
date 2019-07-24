@@ -176,17 +176,32 @@ T reduce_sum(const T *vin, size_t size)
 }
 
 
-inline void reduce_p_ap_task(double *p_ap_dot_global, double *alpha,
-                             double rtrans_global, const double *p_ap_dot,
-                             size_t numboxes)
+inline void reduce_p_ap_alpha_task(double *p_ap_dot_global, double *alpha,
+                                   double *rtrans_global, const double *p_ap_dot,
+                                   size_t numboxes)
 {
 	#pragma oss task in(p_ap_dot[0; numboxes])	\
+		in(rtrans_global[0])			\
 		out(p_ap_dot_global[0])			\
 		out(alpha[0; 2])
 	{
-		*p_ap_dot_global = reduce_sum<double>(p_ap_dot, numboxes);
-		alpha[0] = rtrans_global / (*p_ap_dot_global);
+		p_ap_dot_global[0] = reduce_sum<double>(p_ap_dot, numboxes);
+		alpha[0] = rtrans_global[0] / p_ap_dot_global[0];
 		alpha[1] = -alpha[0];
+	}
+}
+
+inline void reduce_rtrans_beta_task(double *rtrans_global,
+                                    double *beta,
+                                    const double *rtrans, size_t numboxes)
+{
+	#pragma oss task in(rtrans[0; numboxes])	\
+		inout(rtrans_global[0])			\
+		out(beta[0])
+	{
+		const double old_rtrans = rtrans_global[0];
+		rtrans_global[0] = reduce_sum<double>(rtrans, numboxes);
+		beta[0] = rtrans_global[0] / old_rtrans;
 	}
 }
 
