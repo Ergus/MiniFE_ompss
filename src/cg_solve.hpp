@@ -135,8 +135,8 @@ namespace miniFE {
 
 	inline int breakdown(double inner, double vnorm2, double wnorm2)
 	{
-		const double vnorm = std::sqrt(vnorm);
-		const double wnorm = std::sqrt(wnorm);
+		const double vnorm = std::sqrt(vnorm2);
+		const double wnorm = std::sqrt(wnorm2);
 
 		return std::abs(inner) <= 100 * vnorm * wnorm * std::numeric_limits<double>::epsilon();
 	}
@@ -169,7 +169,7 @@ namespace miniFE {
 		double rtrans[numboxes];
 		double oldrtrans;
 		double rtrans_global = 0.0;
-		double beta = 0;
+		double alpha[2], beta = 0;
 
 		int print_freq = max_iter / 10;
 		if (print_freq > 50)
@@ -202,34 +202,46 @@ namespace miniFE {
 
 		dbprintf("brkdown_tol = %g\n", brkdown_tol);
 
-		for (int k = 1; k <= max_iter && normr > tolerance; ++k) {
+		double Ap2[numboxes];
+		double p2[numboxes];
+
+		for (num_iters = 0; num_iters <= max_iter && normr > tolerance; num_iters++) {
 
 			for (size_t i = 0; i < numboxes; ++i)
-				waxpby_task(1.0, &r_array[i], beta, &p_array[i], &p_array[i]);
+				waxpby_dot_task(1.0, &r_array[i], beta, &p_array[i], &p_array[i], &p2[i]);
 
 
 			// rtrans_global is here because of tw above
 			normr = std::sqrt(rtrans_global);
-			if (k % print_freq == 0 || k == max_iter)
-				printf("Iteration = %d Residual = %g\n", k, normr);
+			if (num_iters % print_freq == 0 || num_iters == max_iter)
+				printf("Iteration = %d Residual = %g\n", num_iters, normr);
 
 			double p_ap_dot[numboxes], p_ap_dot_global = 0.0;
-			double Ap2[numboxes];
-			double p2[numboxes];
 
 			// This creates tasks internally
 			exchange_externals_all(A_array, p_array, numboxes, sing);
 			for (size_t i = 0; i < numboxes; ++i)
 				matvec_dot_task(&A_array[i], &p_array[i], &Ap_array[i],
-				                &p_ap_dot[i], &Ap2[i], &p2[i]);
+				                &p_ap_dot[i], &Ap2[i]);
 
-			reduce_sum_task(&p_ap_dot_global, p_ap_dot, numboxes);
+			reduce_p_ap_task(&p_ap_dot_global, alpha, rtrans_global, p_ap_dot, numboxes);
+
+			for (size_t i = 0; i < numboxes; ++i) {
+				waxpby_task(1.0, &x_array[i], &alpha[0], &p_array[i], &x_array[i]);
+				waxpby_dot_task(1.0, &r_array[i], &alpha[1], &Ap_array[i], &r_array[i],
+				                &rtrans[i]);
+			}
+
+			oldrtrans = rtrans_global;
+			reduce_sum_task(&rtrans_global, rtrans, numboxes);
+
 			#pragma oss taskwait
 
-			const double alpha = rtrans_global / p_ap_dot_global;
+			beta = rtrans_global / oldrtrans;
+
 
 			dbprintf("iter: %d p_ap_dot: %g rtrans: %g alpha: %g\n",
-			         k, p_ap_dot_global, rtrans_global, alpha);
+			         num_iters, p_ap_dot_global, rtrans_global, alpha[0]);
 
 			if (p_ap_dot_global < brkdown_tol) {
 
@@ -244,30 +256,11 @@ namespace miniFE {
 					dbprintf("ERROR: p_ap_dot_global = %lf && breakdown_global = %d\n",
 					         p_ap_dot_global, breakdown_global);
 
-					//update the timers before jumping out.
-					delete [] r_array;
-					delete [] p_array;
-					delete [] Ap_array;
-
-					return;
-				} else {
-					brkdown_tol = 0.1 * p_ap_dot_global;
+					break;
 				}
+
+				brkdown_tol = 0.1 * p_ap_dot_global;
 			}
-
-			oldrtrans = rtrans_global;
-			for (size_t i = 0; i < numboxes; ++i) {
-				waxpby_task(1.0, &x_array[i], alpha, &p_array[i], &x_array[i]);
-				waxpby_dot_task(1.0, &r_array[i], -alpha, &Ap_array[i], &r_array[i],
-				            &rtrans[i]);
-			}
-
-			reduce_sum_task(&rtrans_global, rtrans, numboxes);
-			#pragma oss taskwait
-
-			beta = rtrans_global / oldrtrans;
-
-			num_iters = k;
 		} // for k
 
 		delete [] r_array;

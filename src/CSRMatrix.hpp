@@ -363,7 +363,7 @@ namespace miniFE
 	}
 
 	void matvec_dot_task(CSRMatrix *A, Vector *x, Vector *y,
-	                     double *x_y_dot, double *Ap2, double *p2)
+	                     double *x_y_dot, double *Ap2)
 	{
 		int *Arow_offsets = A->row_offsets;
 		size_t Anrows = A->nrows;
@@ -388,8 +388,7 @@ namespace miniFE
 			in(y[0])				\
 			out(ycoefs[0; ylocal_size])		\
 			out(x_y_dot[0])				\
-			out(Ap2[0])				\
-			out(p2[0])
+			out(Ap2[0])
 		{
 			*Ap2 = 0.0;
 
@@ -407,7 +406,6 @@ namespace miniFE
 				*Ap2 += (sum * sum);
 			}
 			dot(y, x, x_y_dot);
-			dot(x, x, p2);
 		}
 	}
 

@@ -153,27 +153,53 @@ std::ostream &operator<< (std::ostream& os, const std::pair<_Key, _Tp> &in)
 }
 
 template <typename T>
-inline void write_all(std::string &filename, const T *in_array, size_t numboxes)
+void write_all(std::string &filename, const T *in_array, size_t numboxes)
 {
 	for (size_t id = 0; id < numboxes; ++id)
 		write_task(filename, in_array[id], id);
 }
+
+
+template <typename T>
+T reduce_sum(const T *vin, size_t size)
+{
+	T vout = 0;
+	for (size_t i = 0; i < size; ++i)
+		vout += vin[i];
+
+	dbvprint_vector("Reducing: ", size, vin);
+	#ifdef VERBOSE
+	std::cout << " = " << vout << std::endl;
+	#endif
+
+	return vout;
+}
+
+
+inline void reduce_p_ap_task(double *p_ap_dot_global, double *alpha,
+                             double rtrans_global, const double *p_ap_dot,
+                             size_t numboxes)
+{
+	#pragma oss task in(p_ap_dot[0; numboxes])	\
+		out(p_ap_dot_global[0])			\
+		out(alpha[0; 2])
+	{
+		*p_ap_dot_global = reduce_sum<double>(p_ap_dot, numboxes);
+		alpha[0] = rtrans_global / (*p_ap_dot_global);
+		alpha[1] = -alpha[0];
+	}
+}
+
 
 template <typename T>
 inline void reduce_sum_task(T *vout, const T *vin, size_t size)
 {
 	#pragma oss task in(vin[0; size]) out(vout[0; 1])
 	{
-		*vout = 0;
-		for (size_t i = 0; i < size; ++i)
-			*vout += vin[i];
-
-		dbvprint_vector("Reducing: ", size, vin);
-		#ifdef VERBOSE
-		std::cout << " = " << *vout << std::endl;
-		#endif
+		*vout = reduce_sum<T>(vin, size);
 	}
 }
+
 
 
 inline void ompss_memcpy_task(void *pout, const void *pin, size_t size)
