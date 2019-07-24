@@ -131,18 +131,15 @@ namespace miniFE
 		}
 
 
-		timer_type t_mesh_fill = mytimer();
 		simple_mesh_description *mesh_array = new simple_mesh_description[numboxes];
 		{
-			for (size_t i = 0; i < numboxes; ++i) {
-				init_mesh_task(&mesh_array[i],
-				               &global_box,
-				               local_boxes_array, \
-				               local_node_box_array,
-				               i,
-				               numboxes);
+			timer_type t_mesh_fill = mytimer();
+			init_mesh_all(mesh_array,
+			              &global_box,
+			              local_boxes_array, \
+			              local_node_box_array,
+			              numboxes);
 
-			}
 			REGISTER_ELAPSED_TIME(t_mesh_fill, t_total);
 		}
 
