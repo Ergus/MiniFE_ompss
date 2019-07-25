@@ -170,7 +170,7 @@ namespace miniFE
 	}
 
 
-	inline void waxpby_task(double alpha, const Vector *x,
+	inline void waxpby_task(double *ptr, double alpha, const Vector *x,
 	                        double *beta,  const Vector *y,
 	                        Vector *w)
 	{
@@ -182,6 +182,7 @@ namespace miniFE
 		size_t wlocal_size = w->local_size;
 
 		#pragma oss task					\
+			in(ptr[0; 100000])				\
 			in(xcoefs[0; xlocal_size])			\
 			in(beta[0])					\
 			in(ycoefs[0; ylocal_size])			\
@@ -196,7 +197,7 @@ namespace miniFE
 
 	}
 
-	inline void waxpby_dot_task(double alpha, const Vector *x,
+	inline void waxpby_dot_task(double *ptr, double alpha, const Vector *x,
 	                            double *beta,  const Vector *y,
 	                            Vector *w, double *w2)
 	{
@@ -210,12 +211,14 @@ namespace miniFE
 
 
 		#pragma oss task					\
+			in(ptr[0; 100000])				\
 			in(beta[0])					\
 			in(xcoefs[0; xlocal_size])			\
 			in(ycoefs[0; ylocal_size])			\
 			out(wcoefs[0; wlocal_size])			\
 			out(w2[0])
 		{
+			dbvprintf("Execute waxpby_dot_task %d\n", xlocal_size);
 			*w2 = 0.0;
 			assert(xlocal_size <= ylocal_size);
 			assert(xlocal_size <= wlocal_size);

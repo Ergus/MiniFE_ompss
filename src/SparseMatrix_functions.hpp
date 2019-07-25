@@ -288,13 +288,15 @@ namespace miniFE
 
 	// TODO: make all this weak when things works
 	#pragma oss task						\
+		in(ptr[0; 100000])					\
 		in(row_coords[0; 3 * nrows])				\
 		in(mesh[0])						\
 		in(mesh_ompss2_ids_to_rows[0; mesh_ids_to_rows_size])	\
 		in(row_offsets[0; nrows + 1])				\
 		out(packed_cols[0; nnz])				\
 		out(packed_coefs[0; nnz])
-	void init_matrix_task(const int *row_coords,
+	void init_matrix_task(double *ptr,
+	                      const int *row_coords,
 	                      int global_nrows,
 	                      const simple_mesh_description *mesh,
 	                      const std::pair<int,int> *mesh_ompss2_ids_to_rows,
@@ -322,6 +324,7 @@ namespace miniFE
 
 
 	#pragma oss task						\
+		in(ptr[0; 100000])					\
 		out(row_coords[0; nrows * 3])				\
 		out(rows[0; nrows])					\
 		out(row_offsets[0; nrows + 1])				\
@@ -330,17 +333,18 @@ namespace miniFE
 		out(nnz[0])						\
 		out(first_row[0])					\
 		out(stop_row[0])
-	void init_offsets_task(int *row_coords,
-		int *rows,
-		int *row_offsets,
-		const simple_mesh_description *mesh,
-		const std::pair<int,int> *mesh_ompss2_ids_to_rows,
-		size_t mesh_ids_to_rows_size,
-		size_t global_nrows,
-		size_t nrows,
-		size_t *nnz,
-		int *first_row,
-		int *stop_row)
+	void init_offsets_task(double *ptr,
+	                       int *row_coords,
+	                       int *rows,
+	                       int *row_offsets,
+	                       const simple_mesh_description *mesh,
+	                       const std::pair<int,int> *mesh_ompss2_ids_to_rows,
+	                       size_t mesh_ids_to_rows_size,
+	                       size_t global_nrows,
+	                       size_t nrows,
+	                       size_t *nnz,
+	                       int *first_row,
+	                       int *stop_row)
 	{
 		const Box &box = mesh->extended_box;
 		size_t tnnz = 0;

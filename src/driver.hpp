@@ -104,6 +104,9 @@ namespace miniFE
 
 		std::cout << "Global Box: " << global_box << std::endl;
 
+		double *ptr = (double *) rrd_malloc(1000 * numboxes * sizeof(double));
+		double *ptr2 = (double *) rrd_malloc(100000 * numboxes * sizeof(double));
+		double *ptr3 = (double *) rrd_malloc(100000 * numboxes * sizeof(double));
 		// TODO: imbalance is implemented but not tested yet
 		// if (params.load_imbalance > 0)
 		// 	add_imbalance<GlobalOrdinal>(global_box, local_boxes, numboxes,
@@ -135,6 +138,7 @@ namespace miniFE
 		{
 			timer_type t_mesh_fill = mytimer();
 			init_mesh_all(mesh_array,
+			              ptr,
 			              &global_box,
 			              local_boxes_array, \
 			              local_node_box_array,
@@ -149,7 +153,8 @@ namespace miniFE
 			std::cout << "generating matrix structure..." << std::endl;
 			timer_type t_gen_structure = mytimer();
 
-			generate_matrix_structure_all(A_array,
+			generate_matrix_structure_all(ptr3,
+			                              A_array,
 			                              mesh_array,
 			                              &sing,
 			                              numboxes);
@@ -222,7 +227,7 @@ namespace miniFE
 			timer_type t_make_local_time = mytimer();
 
 			// TODO: weak task here
-			make_local_matrix(A_array, &sing, numboxes);
+			make_local_matrix(ptr, A_array, &sing, numboxes);
 
 			REGISTER_ELAPSED_TIME(t_make_local_time, t_total);
 		}
@@ -265,7 +270,7 @@ namespace miniFE
 		{
 			cg_times[TOTAL] = mytimer();
 
-			cg_solve_all(A_array, numboxes, b_array, x_array,
+			cg_solve_all(ptr2, A_array, numboxes, b_array, x_array,
 			             max_iters, tol, num_iters, rnorm, &sing);
 
 			REGISTER_ELAPSED_TIME(cg_times[TOTAL], t_total);
@@ -344,6 +349,10 @@ namespace miniFE
 		delete [] A_array;
 		delete [] b_array;
 		delete [] x_array;
+
+		rrd_free(ptr, (1000 * numboxes * sizeof(double)));
+		rrd_free(ptr2, (100000 * numboxes * sizeof(double)));
+		rrd_free(ptr3, (100000 * numboxes * sizeof(double)));
 
 		return verify_result;
 	}

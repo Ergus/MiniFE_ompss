@@ -241,7 +241,8 @@ namespace miniFE
 
 	}; // class CSRMatrix
 
-	void generate_matrix_structure_all(CSRMatrix *A_array,
+	void generate_matrix_structure_all(double *ptr,
+	                                   CSRMatrix *A_array,
 	                                   const simple_mesh_description *mesh_array,
 	                                   singleton *sing,
 	                                   size_t numboxes)
@@ -267,7 +268,8 @@ namespace miniFE
 			const simple_mesh_description *mesh = &mesh_array[i];
 
 
-			init_offsets_task(A->row_coords,
+			init_offsets_task(&ptr[100000 *i],
+			                  A->row_coords,
 			                  A->rows,
 			                  A->row_offsets,
 			                  mesh,
@@ -288,7 +290,8 @@ namespace miniFE
 			CSRMatrix *A = &A_array[i];
 			const simple_mesh_description *mesh = &mesh_array[i];
 
-			init_matrix_task(A->row_coords,
+			init_matrix_task(&ptr[100000 *i],
+			                 A->row_coords,
 			                 A->global_nrows,
 			                 mesh,
 			                 mesh->ompss2_ids_to_rows,
@@ -320,7 +323,7 @@ namespace miniFE
 		}
 	}
 
-	void matvec_task(CSRMatrix *A, Vector *x, Vector *y)
+	void matvec_task(double *ptr, CSRMatrix *A, Vector *x, Vector *y)
 	{
 		int *Arow_offsets = A->row_offsets;
 		size_t Anrows = A->nrows;
@@ -336,6 +339,7 @@ namespace miniFE
 		assert(ylocal_size >= Anrows);
 
 		#pragma oss task				\
+			in(ptr[0; 100000])			\
 			in(A[0])				\
 			in(Arow_offsets[0; Anrows + 1])		\
 			in(Apacked_cols[0; Annz])		\
@@ -362,7 +366,7 @@ namespace miniFE
 		}
 	}
 
-	void matvec_dot_task(CSRMatrix *A, Vector *x, Vector *y,
+	void matvec_dot_task(double *ptr, CSRMatrix *A, Vector *x, Vector *y,
 	                     double *x_y_dot, double *Ap2)
 	{
 		int *Arow_offsets = A->row_offsets;
@@ -379,6 +383,7 @@ namespace miniFE
 		assert(ylocal_size >= Anrows);
 
 		#pragma oss task				\
+			in(ptr[0; 100000])			\
 			in(A[0])				\
 			in(Arow_offsets[0; Anrows + 1])		\
 			in(Apacked_cols[0; Annz])		\
@@ -390,6 +395,7 @@ namespace miniFE
 			out(x_y_dot[0])				\
 			out(Ap2[0])
 		{
+			dbvprintf("Execute matvec_dot\n");
 			*Ap2 = 0.0;
 
 			for (size_t row = 0; row < Anrows; ++row) {

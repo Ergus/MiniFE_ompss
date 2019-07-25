@@ -116,6 +116,7 @@ namespace miniFE
 
 
 	void init_mesh_all(simple_mesh_description *mesh_array,
+	                   double *ptr,
 	                   const Box *global_box_in,
 	                   const Box *local_boxes_array,    // Global boxes
 	                   const Box *local_node_box_array, // Boxes resized
@@ -128,6 +129,7 @@ namespace miniFE
 
 			#pragma oss task				\
 				out(mesh[0])				\
+				in(ptr[id * 1000; 1000])			\
 				in(global_box_in[0])			\
 				in(local_boxes_array[0; numboxes])	\
 				in(local_node_box_array[0; numboxes])

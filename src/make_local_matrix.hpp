@@ -43,6 +43,7 @@
 namespace miniFE {
 
 	#pragma oss task						\
+		in(ptr[0; 1000])					\
 		inout(A[0])						\
 		in(nrows_array[0; numboxes])				\
 		in(start_row_array[0; numboxes])			\
@@ -52,7 +53,8 @@ namespace miniFE {
 		inout(Apacked_cols[0; Annz])				\
 		out(Arecv_neighbors[0; numboxes])			\
 		out(Arecv_length[0; numboxes])
-	void get_recv_info_task(CSRMatrix *A, size_t id, size_t numboxes,
+	void get_recv_info_task(double *ptr,
+	                        CSRMatrix *A, size_t id, size_t numboxes,
 	                        const size_t *nrows_array,
 	                        const int *start_row_array,
 	                        const int *stop_row_array,
@@ -194,12 +196,15 @@ namespace miniFE {
 
 	// TODO try to substitute A with first private
 	#pragma oss task inout(A[0])					\
+		in(ptr[0; 1000])					\
 		in(nrecv_neighbors_global[0; numboxes])			\
 		in(recv_neighbors_global[0; global_nrecv_neighbors])	\
 		in(recv_length_global[0; global_nrecv_neighbors])	\
 		out(send_neighbors_local[0; numboxes])			\
 		out(send_length_local[0; numboxes])
-	void get_send_info_task(CSRMatrix *A, size_t id,
+	void get_send_info_task(
+		double *ptr,
+		CSRMatrix *A, size_t id,
 		size_t numboxes,
 		const int *nrecv_neighbors_global,
 
@@ -265,7 +270,8 @@ namespace miniFE {
 	}
 
 	// TODO: possible error here
-	#pragma oss task in(A_array[0: numboxes])			\
+	#pragma oss task in(ptr[0; 1000])				\
+		in(A_array[0: numboxes])				\
 									\
 		in(send_neighbors_local[0; nsend_neighbors_local])	\
 		in(send_length_local[0; nsend_neighbors_local])		\
@@ -277,7 +283,8 @@ namespace miniFE {
 		in(external_index_global[0; global_nexternals_global])	\
 									\
 		out(elements_to_send_local[0; nelements_to_send_local])
-	void set_send_info_task(CSRMatrix *A_array, size_t id,
+	void set_send_info_task(double *ptr,
+	                        CSRMatrix *A_array, size_t id,
 	                        size_t numboxes,
 
 	                        int nsend_neighbors_local,
@@ -378,7 +385,7 @@ namespace miniFE {
 	// This will be called from driver ================================
 	//=================================================================
 
-	void make_local_matrix(CSRMatrix *A_array, singleton *sing, size_t numboxes)
+	void make_local_matrix(double *ptr, CSRMatrix *A_array, singleton *sing, size_t numboxes)
 	{
 		if (numboxes < 2) {
 			A_array[0].num_cols = A_array[0].nrows;
@@ -430,7 +437,8 @@ namespace miniFE {
 			A->recv_neighbors = &recv_neighbors_global[id * numboxes];
 			A->recv_length = &recv_length_global[id * numboxes];
 
-			get_recv_info_task(A, id, numboxes,
+			get_recv_info_task(&ptr[id*1000],
+			                   A, id, numboxes,
 			                   nrows_array,
 			                   start_row_array,
 			                   stop_row_array,
@@ -517,7 +525,9 @@ namespace miniFE {
 			A->send_neighbors = &send_neighbors_global[id * numboxes];
 			A->send_length = &send_length_global[id * numboxes];
 
-			get_send_info_task(A, id,
+			get_send_info_task(&ptr[id*1000],
+			                   A,
+			                   id,
 			                   numboxes,
 			                   sing->nrecv_neighbors,
 			                   sing->global_nrecv_neighbors,
@@ -587,7 +597,8 @@ namespace miniFE {
 
 			CSRMatrix *A = &A_array[id];
 
-			set_send_info_task(A_array, id, numboxes,
+			set_send_info_task(&ptr[id*1000],
+			                   A_array, id, numboxes,
 
 			                   A->nsend_neighbors,
 			                   A->send_neighbors,

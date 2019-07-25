@@ -141,7 +141,8 @@ namespace miniFE {
 	}
 
 
-	void cg_solve_all(CSRMatrix *A_array, size_t numboxes,
+	void cg_solve_all(double *ptr,
+	                  CSRMatrix *A_array, size_t numboxes,
 	                  const Vector *b_array, Vector *x_array,
 	                  int max_iter,
 	                  const double tolerance,
@@ -180,15 +181,15 @@ namespace miniFE {
 			rtrans[i] = 0;
 			assert(A_array[i].has_local_indices);
 
-			waxpby_task(1.0, &x_array[i], &zero, &x_array[i], &p_array[i]);
+			waxpby_task(&ptr[i*100000], 1.0, &x_array[i], &zero, &x_array[i], &p_array[i]);
 		}
 
 		exchange_externals_all(A_array, p_array, numboxes, sing);
 
 		for (size_t i = 0; i < numboxes; ++i) {
-			matvec_task(&A_array[i], &p_array[i], &Ap_array[i]);
+			matvec_task(&ptr[i*100000], &A_array[i], &p_array[i], &Ap_array[i]);
 
-			waxpby_dot_task(1.0, &b_array[i], &minusone, &Ap_array[i], &r_array[i], &rtrans[i]);
+			waxpby_dot_task(&ptr[i*100000], 1.0, &b_array[i], &minusone, &Ap_array[i], &r_array[i], &rtrans[i]);
 		}
 
 		reduce_sum_task(&rtrans_global, rtrans, numboxes);
@@ -207,7 +208,7 @@ namespace miniFE {
 		for (num_iters = 0; num_iters <= max_iter && normr > tolerance; num_iters++) {
 
 			for (size_t i = 0; i < numboxes; ++i)
-				waxpby_dot_task(1.0, &r_array[i], &beta, &p_array[i], &p_array[i], &p2[i]);
+				waxpby_dot_task(&ptr[i*100000], 1.0, &r_array[i], &beta, &p_array[i], &p_array[i], &p2[i]);
 
 
 			// rtrans_global is here because of tw above
@@ -215,14 +216,14 @@ namespace miniFE {
 			// This creates tasks internally
 			exchange_externals_all(A_array, p_array, numboxes, sing);
 			for (size_t i = 0; i < numboxes; ++i)
-				matvec_dot_task(&A_array[i], &p_array[i], &Ap_array[i],
+				matvec_dot_task(&ptr[i*100000], &A_array[i], &p_array[i], &Ap_array[i],
 				                &p_ap_dot[i], &Ap2[i]);
 
 			reduce_p_ap_alpha_task(&p_ap_dot_global, alpha, &rtrans_global, p_ap_dot, numboxes);
 
 			for (size_t i = 0; i < numboxes; ++i) {
-				waxpby_task(1.0, &x_array[i], &alpha[0], &p_array[i], &x_array[i]);
-				waxpby_dot_task(1.0, &r_array[i], &alpha[1], &Ap_array[i], &r_array[i],
+				waxpby_task(&ptr[i*100000], 1.0, &x_array[i], &alpha[0], &p_array[i], &x_array[i]);
+				waxpby_dot_task(&ptr[i*100000], 1.0, &r_array[i], &alpha[1], &Ap_array[i], &r_array[i],
 				                &rtrans[i]);
 			}
 
