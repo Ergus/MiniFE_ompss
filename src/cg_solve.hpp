@@ -262,6 +262,8 @@ namespace miniFE {
 			}
 		} // for k
 
+		#pragma oss taskwait
+
 		delete [] r_array;
 		delete [] p_array;
 		delete [] Ap_array;
