@@ -416,7 +416,8 @@ namespace miniFE
 	}
 
 
-	inline void assemble_FE_data_task(const simple_mesh_description *mesh_array,
+	inline void assemble_FE_data_task(double *ptr,
+	                                  const simple_mesh_description *mesh_array,
 	                                  CSRMatrix *A_array,
 	                                  Vector *b_array,
 	                                  size_t numboxes)
@@ -439,6 +440,7 @@ namespace miniFE
 			size_t blocal_size = b->local_size;
 
 			#pragma oss task				\
+				in(ptr[100000*id; 100000])		\
 				in(mesh[0])				\
 				in(mesh_ompss2_ids_to_rows[0; mesh_i_ids_to_rows_size])	\
 				inout(A[0])				\

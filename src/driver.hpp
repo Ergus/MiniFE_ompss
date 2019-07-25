@@ -107,6 +107,7 @@ namespace miniFE
 		double *ptr = (double *) rrd_malloc(1000 * numboxes * sizeof(double));
 		double *ptr2 = (double *) rrd_malloc(100000 * numboxes * sizeof(double));
 		double *ptr3 = (double *) rrd_malloc(100000 * numboxes * sizeof(double));
+		double *ptr4 = (double *) rrd_malloc(100000 * numboxes * sizeof(double));
 		// TODO: imbalance is implemented but not tested yet
 		// if (params.load_imbalance > 0)
 		// 	add_imbalance<GlobalOrdinal>(global_box, local_boxes, numboxes,
@@ -179,7 +180,7 @@ namespace miniFE
 			std::cout << "assembling FE data..." << std::endl;
 			timer_type t_fe_assembly = mytimer();
 
-			assemble_FE_data_task(mesh_array, A_array, b_array, numboxes);
+			assemble_FE_data_task(ptr4, mesh_array, A_array, b_array, numboxes);
 
 			REGISTER_ELAPSED_TIME(t_fe_assembly, t_total);
 
@@ -353,6 +354,7 @@ namespace miniFE
 		rrd_free(ptr, (1000 * numboxes * sizeof(double)));
 		rrd_free(ptr2, (100000 * numboxes * sizeof(double)));
 		rrd_free(ptr3, (100000 * numboxes * sizeof(double)));
+		rrd_free(ptr4, (100000 * numboxes * sizeof(double)));
 
 		return verify_result;
 	}
